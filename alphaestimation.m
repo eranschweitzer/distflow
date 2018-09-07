@@ -31,18 +31,6 @@ end
 %% alpha statistics
 stats.mean = cellfun(@mean, alpha);
 stats.std  = cellfun(@std,  alpha);
-
+stats.median = cellfun(@median, alpha);
 %% save
 save('alphaest.mat', 'alpha', 'feeder_sizes', 'nsamples', 'stats', '-v7.3')
-
-%% plot histograms
-idx = [1, round(length(feeder_sizes)/2), length(feeder_sizes)];
-figure;
-for k = 1:3
-    subplot(3,1,k)
-    histogram(alpha{idx(k)},'Normalization', 'pdf')
-    xlabel('\alpha')
-    ylabel('Density')
-    titlestr = sprintf('Feeders with %d Nodes', feeder_sizes(idx(k)));
-    title(titlestr)
-end
