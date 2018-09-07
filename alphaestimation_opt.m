@@ -6,7 +6,10 @@ feeder_sizes = 10:10:500; % number of nodes for samples
 alpha_range  = 0.49:0.0001:0.5;
 nsamples = 100;           % number of samples per feeder size
 
-mpopt = mpoption('out.all',0, 'verbose', 0);
+mpopt  = mpoption('out.all',0, 'verbose', 0);
+mpopt2 = mpopt;
+mpopt2.pf.alg = 'ISUM';
+mpopt2.pf.radial.max_it = 500;
 %% proccess samples
 alpha = cell(length(feeder_sizes), 1);
 if isempty(gcp('nocreate'))
@@ -23,14 +26,19 @@ parfor k = 1:length(feeder_sizes)
         
         r = runpf(mpc, mpopt);
         if ~r.success
-            fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, iter)
-            continue
+            r = runpf(mpc, mpopt2)
+            if ~r.success
+                fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, iter)
+                continue
+            end
         end
         err = zeros(length(alpha_range), 1);
         for kk = 1:length(alpha_range)
             a = alpha_range(kk);
-            v = distflow_lossy(r, a);
-            err(kk) = norm(r.bus(:,VM) - v, 2);
+            [v, pf, qf] = distflow_lossy(r, a);
+            err(kk) = norm(r.bus(:,VM) - v, 2) +...
+                      norm( (r.branch(:,PF) - pf)/r.baseMVA, 2) + ...
+                      norm( (r.branch(:,QF) - qf)/r.baseMVA, 2);
         end
         [~, idx]  = min(err);
         tmp{iter} = alpha_range(idx);
