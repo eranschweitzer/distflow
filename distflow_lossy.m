@@ -1,4 +1,4 @@
-function v = distflow_lossy(mpc, alpha)
+function [v, Pf, Qf] = distflow_lossy(mpc, alpha)
 
 %% operator setup
 define_constants;
@@ -9,8 +9,8 @@ Branch = 1:length(FromNode);
 NumberOfBranch=length(Branch);
 F = sparse(Branch,FromNode,1,NumberOfBranch,NumberOfNodes);
 T = sparse(Branch,ToNode,1,NumberOfBranch,NumberOfNodes);
-M = F-T;
-M = M(:,2:end);
+M0 = F-T;
+M = M0(:,2:end);
 
 r = mpc.branch(:,BR_R);
 x = mpc.branch(:,BR_X);
@@ -35,3 +35,8 @@ Rlossy=(M\Kinv)*Rline*B*T;
 Xlossy=(M\Kinv)*Xline*B*T;
 v = [slack_voltage^2 ;slack_voltage^2+Rlossy*pc+Xlossy*qc];
 v = sqrt(v);
+
+Pf = mpc.baseMVA*B*(T*pc + ...
+    (1-2*alpha)*Rline*(Rline*Rline + Xline*Xline)^(-1)*M0*v.^2);
+Qf = mpc.baseMVA*B*(T*qc + ...
+    (1-2*alpha)*Xline*(Rline*Rline + Xline*Xline)^(-1)*M0*v.^2); 
