@@ -9,8 +9,10 @@ nsamples = 100;           % number of samples per feeder size
 mpopt = mpoption('out.all',0, 'verbose', 0);
 %% proccess samples
 alpha = cell(length(feeder_sizes), 1);
-parpool(min(length(feeder_sizes),60));
-for k = 1:length(feeder_sizes)
+if isempty(gcp('nocreate'))
+    parpool(min(length(feeder_sizes),60));
+end
+parfor k = 1:length(feeder_sizes)
     fz = feeder_sizes(k);
     fprintf('Running samples of size %d (%d of %d)...\n',fz,k,length(feeder_sizes))
     tmp = cell(nsamples,1);
@@ -21,6 +23,7 @@ for k = 1:length(feeder_sizes)
         
         r = runpf(mpc, mpopt);
         if ~r.success
+            fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, iter)
             continue
         end
         err = zeros(length(alpha_range), 1);
