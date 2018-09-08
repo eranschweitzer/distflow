@@ -23,7 +23,17 @@ parfor k = 1:length(feeder_sizes)
         [n,e] = single_feeder_gen(fz);
         mpc = matpower_fmt(n,e,60);
         mpc = parallel_branch_join(mpc);
+        % remove charging shunts which are not modeled in distflow
+        mpc.branch(:,BR_B) = 0; 
         
+        % set transformer tap to 1 since these are also not modled in
+        % distflow
+        mpc.branch(1,TAP) = 1;
+        % to avoid extremely large voltage drops due to the ill-setup
+        % transformer, reduce its impedance artificailly.
+        mpc.branch(1,[BR_R,BR_X]) = mpc.branch(1,[BR_R,BR_X])/4;
+        
+        % solve matpower case
         r = runpf(mpc, mpopt);
         if ~r.success
             r = runpf(mpc, mpopt2)
