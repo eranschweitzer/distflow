@@ -2,9 +2,8 @@
 clear variables
 close all
 %% load data
-load('alphaest.mat')
+load('alphaest_opt.mat')
 
-stats.median = cellfun(@median, alpha);
 %% plot mean and median
 figure;
 plot(feeder_sizes, stats.mean, 'k', 'linewidth', 2)
