@@ -20,8 +20,10 @@ norm2lossless = zvect; maxlossless = zvect; avglossless = zvect; stdlossless = z
 status = false(nsamples,1);
 %%
 parforstatus(nsamples, 0.1, 1);
-parpool(60);
-parfor k = 1:nsample
+if isempty(gcp('nocreate'))
+    parpool(60);
+end
+parfor k = 1:nsamples
     parforstatus(nsamples, 0.1)
     [n,e] = single_feeder_gen();
     fz    = length(n.id);
