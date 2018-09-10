@@ -17,14 +17,16 @@ fzvect     = zeros(nsamples,1);
 norm2lossy = zvect; maxlossy = zvect; avglossy = zvect; stdlossy = zvect;
 norm2lossless = zvect; maxlossless = zvect; avglossless = zvect; stdlossless = zvect;
 
-status = false(nsamples,1);
 %%
-parforstatus(nsamples, 0.1, 1);
-if isempty(gcp('nocreate'))
-    parpool(60);
-end
-parfor k = 1:nsamples
-    parforstatus(nsamples, 0.1)
+%parforstatus(nsamples, 0.1, 1);
+%if isempty(gcp('nocreate'))
+%    parpool(60);
+%end
+for k = 1:nsamples
+		if mod(k,50) == 0
+			fprintf('%d of %d complete.\n', k, nsamples)
+		end
+%    parforstatus(nsamples, 0.1)
     [n,e] = single_feeder_gen();
     fz    = length(n.id);
     %% matpower case
@@ -45,7 +47,7 @@ parfor k = 1:nsamples
     if ~r.success
         r = runpf(mpc, mpopt2);
         if ~r.success
-            fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, iter)
+            fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, k)
             continue
         end
     end
@@ -94,8 +96,8 @@ err = struct('fz', fzvect,...
 mask = err.fz ~= 0;
 err.fz = err.fz(mask);
 for field = {'norm2', 'max', 'avg', 'std'}
-    err.lossy.(field) = err.lossy.(field)(mask);
-    err.lossless.(field) = err.lossless.(field)(mask);
+    err.lossy.(field{:}) = err.lossy.(field{:})(mask);
+    err.lossless.(field{:}) = err.lossless.(field{:})(mask);
 end
 
 save('error_results.mat', 'err')
