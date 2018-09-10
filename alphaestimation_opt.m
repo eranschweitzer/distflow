@@ -36,7 +36,7 @@ parfor k = 1:length(feeder_sizes)
         % solve matpower case
         r = runpf(mpc, mpopt);
         if ~r.success
-            r = runpf(mpc, mpopt2)
+            r = runpf(mpc, mpopt2);
             if ~r.success
                 fprintf('MATPOWER convergence failed: Feeder size %d, iter %d\n', fz, iter)
                 continue
