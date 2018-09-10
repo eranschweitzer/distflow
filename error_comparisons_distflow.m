@@ -96,8 +96,8 @@ err = struct('fz', fzvect,...
 mask = err.fz ~= 0;
 err.fz = err.fz(mask);
 for field = {'norm2', 'max', 'avg', 'std'}
-    err.lossy.(field{:}) = err.lossy.(field{:})(mask);
-    err.lossless.(field{:}) = err.lossless.(field{:})(mask);
+    err.lossy.(field{:}) = err.lossy.(field{:})(mask,:);
+    err.lossless.(field{:}) = err.lossless.(field{:})(mask,:);
 end
 
 save('error_results.mat', 'err')
