@@ -15,6 +15,7 @@ zvect = zeros(nsamples,3);
 %       'lossless', struct('norm2', zvect, 'max', zvect, 'avg', zvect, 'std', zvect));
 fzvect     = zeros(nsamples,1);
 norm2lossy = zvect; maxlossy = zvect; avglossy = zvect; stdlossy = zvect;
+norm2lossycnst = zvect; maxlossycnst = zvect; avglossycnst = zvect; stdlossycnst = zvect;
 norm2lossless = zvect; maxlossless = zvect; avglossless = zvect; stdlossless = zvect;
 
 %%
@@ -58,6 +59,10 @@ for k = 1:nsamples
     alpha = f(fz,beta);
     [vlossy, pflossy, qflossy] = distflow_lossy(r, alpha);
     
+    %% lossy distflow
+    alpha =0.4987;
+    [vlossycnst, pflossycnst, qflossycnst] = distflow_lossy(r, alpha);
+    
     %% lossless distflow
     [vlossless, pflossless, qflossless] = distflow_lossy(r, 0.5);
     
@@ -68,36 +73,45 @@ for k = 1:nsamples
     tmp.lossy.v = v - vlossy;
     tmp.lossy.p = (pf - pflossy)/r.baseMVA;
     tmp.lossy.q = (qf - qflossy)/r.baseMVA;
+    tmp.lossycnst.v = v - vlossycnst;
+    tmp.lossycnst.p = (pf - pflossycnst)/r.baseMVA;
+    tmp.lossycnst.q = (qf - qflossycnst)/r.baseMVA;
     tmp.lossless.v = v - vlossless;
     tmp.lossless.p = (pf - pflossless)/r.baseMVA;
     tmp.lossless.q = (qf - qflossless)/r.baseMVA;
     % 2 norm 
     norm2lossy(k,:)    = [norm(tmp.lossy.v,2), norm(tmp.lossy.p,2), norm(tmp.lossy.q,2)];
+    norm2lossycnst(k,:)= [norm(tmp.lossycnst.v,2), norm(tmp.lossycnst.p,2), norm(tmp.lossycnst.q,2)];
     norm2lossless(k,:) = [norm(tmp.lossless.v,2), norm(tmp.lossless.p,2), norm(tmp.lossless.q,2)];
     
     % max error
     maxlossy(k,:)      = [max(abs(tmp.lossy.v)), max(abs(tmp.lossy.p)), max(abs(tmp.lossy.q))];
+    maxlossycnst(k,:)  = [max(abs(tmp.lossycnst.v)), max(abs(tmp.lossycnst.p)), max(abs(tmp.lossycnst.q))];
     maxlossless(k,:)   = [max(abs(tmp.lossless.v)), max(abs(tmp.lossless.p)), max(abs(tmp.lossless.q))];
     
     % avg error
     avglossy(k,:)      = [mean(abs(tmp.lossy.v)), mean(abs(tmp.lossy.p)), mean(abs(tmp.lossy.q))];
+    avglossycnst(k,:)  = [mean(abs(tmp.lossycnst.v)), mean(abs(tmp.lossycnst.p)), mean(abs(tmp.lossycnst.q))];
     avglossless(k,:)   = [mean(abs(tmp.lossless.v)), mean(abs(tmp.lossless.p)), mean(abs(tmp.lossless.q))];
     
     % std error
     stdlossy(k,:)      = [std(abs(tmp.lossy.v)), std(abs(tmp.lossy.p)), std(abs(tmp.lossy.q))];
+    stdlossycnst(k,:)  = [std(abs(tmp.lossycnst.v)), std(abs(tmp.lossycnst.p)), std(abs(tmp.lossycnst.q))];
     stdlossless(k,:)   = [std(abs(tmp.lossless.v)), std(abs(tmp.lossless.p)), std(abs(tmp.lossless.q))];
 end
 
 %% place results in a structure
 err = struct('fz', fzvect,...
       'lossy', struct('norm2', norm2lossy, 'max', maxlossy, 'avg', avglossy, 'std', stdlossy),...
+      'lossycnst', struct('norm2', norm2lossycnst, 'max', maxlossycnst, 'avg', avglossycnst, 'std', stdlossycnst),...
       'lossless', struct('norm2', norm2lossless, 'max', maxlossless, 'avg', avglossless, 'std', stdlossless));
 %% filter result and save
 mask = err.fz ~= 0;
 err.fz = err.fz(mask);
 for field = {'norm2', 'max', 'avg', 'std'}
     err.lossy.(field{:}) = err.lossy.(field{:})(mask,:);
+    err.lossycnst.(field{:}) = err.lossycnst.(field{:})(mask,:);
     err.lossless.(field{:}) = err.lossless.(field{:})(mask,:);
 end
 
-save('error_results.mat', 'err')
+save('error_results_withcnst.mat', 'err')
