@@ -1,8 +1,8 @@
-function [nmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
+function [nmap, rmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
 %%% Relables radial nodes so that the `to` node is always greater than the
 %%% `from` node.
 %%%
-%%%     [nmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
+%%%     [nmap, rmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
 %%%
 %%% INPUTS:
 %%%     f: list of `from` nodes
@@ -14,6 +14,7 @@ function [nmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
 %%%
 %%% OUTPUTS:
 %%%     nmap: mapping vector nmap(i) -> new node id
+%%%     rmap: reverse mapping vector: rmap(new node id) -> old id
 %%%     fnew: new `from` list (this is simply `nmap(f)`)
 %%%     tnew: new `to` list (this is simply `nmap(t)`)
 
@@ -43,9 +44,10 @@ A = diag(diag(L)) - L;
 if showplots
     G = graph(A);
     figure;
-    subplot(1,2,1)
+    subplot(1,3,1)
     plot(G,'Layout', 'layered', 'Sources', root)
     title('Original Lables')
+    set(gca,'xtick',[], 'xticklabel',[], 'ytick',[], 'yticklabel',[])
 end
 %% initialize map
 % nmap(i) -> new node id
@@ -64,18 +66,33 @@ while ptr <= length(nmap)
     end
     x0 = x;
 end
+%% reverse map
+rmap = full(sparse(nmap(1:nb),1,1:nb));
+%% test rmap
+if ~all(rmap(nmap(f)) == f)
+    error('NodeRelabling: rmap test failed.')
+end
 %% mapped outputs
-if nargout > 1
+if nargout > 2
     fnew = nmap(f);
     tnew = nmap(t);
 end
 %%
 if showplots
+
+    subplot(1,3,2)
+    plot(G,'Layout', 'layered', 'Sources', root, 'NodeLabel', nmap(1:nb))
+    title('New Lables')
+    set(gca,'xtick',[])
+    set(gca,'xtick',[], 'xticklabel',[], 'ytick',[], 'yticklabel',[])
+    
     labels = cell(nb,1);
     for k = 1:nb
-        labels{k} = sprintf('%d->%d',k,nmap(k));
+        labels{k} = sprintf('%d<->%d',nmap(k), rmap(nmap(k)));
     end
-    subplot(1,2,2)
+    subplot(1,3,3)
     plot(G,'Layout', 'layered', 'Sources', root, 'NodeLabel', labels)
-    title('New Lables')
+    title('Reverse Mapped Lables')
+    set(gca,'xtick',[])
+    set(gca,'xtick',[], 'xticklabel',[], 'ytick',[], 'yticklabel',[])
 end
