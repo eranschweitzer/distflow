@@ -1,57 +1,81 @@
-f = [6, 1, 1, 3, 4];
-t = [1, 3, 4, 2, 5];
+function [nmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
+%%% Relables radial nodes so that the `to` node is always greater than the
+%%% `from` node.
+%%%
+%%%     [nmap, fnew, tnew] = NodeRelabling(f, t, root, varargin)
+%%%
+%%% INPUTS:
+%%%     f: list of `from` nodes
+%%%     t: list of `to` nodes
+%%%     root: root nodes (source node)
+%%%     optional inputs:
+%%%         'plots': generates plots of the feeder with original and mapped
+%%%         labels
+%%%
+%%% OUTPUTS:
+%%%     nmap: mapping vector nmap(i) -> new node id
+%%%     fnew: new `from` list (this is simply `nmap(f)`)
+%%%     tnew: new `to` list (this is simply `nmap(t)`)
 
-F = sparse(1:5, f, 1, 5, 6);
-T = sparse(1:5, t, 1, 5, 6);
+showplots = ismember('plots', varargin);
+if nargin == 0
+    % demo inputs
+    f = [6, 1, 1, 3, 4].';
+    t = [1, 3, 4, 2, 5].';
+    root = 6;
+    showplots = true;
+elseif nargin < 3
+    error('NodeRelabling: At least 3 arguments are required (unless running demo mode with 0 arguments)')
+end
+nl = length(f);
+nb = nl + 1;
+if ~all(sort(unique([f;t])) == (1:nb).')
+    error('NodeRelabling: nodes must be labled consecutively.')
+end
+
+F = sparse(1:nl, f, 1, nl, nb);
+T = sparse(1:nl, t, 1, nl, nb);
 M = F - T;
 
 L = M'*M;
 A = diag(diag(L)) - L;
-G = A + eye(6);
+%% 
+if showplots
+    G = graph(A);
+    figure;
+    subplot(1,2,1)
+    plot(G,'Layout', 'layered', 'Sources', root)
+    title('Original Lables')
+end
 %% initialize map
 % nmap(i) -> new node id
-nmap = zeros(6,1);
-nmap(6) = 1;
+nmap = zeros(nb,1);
+nmap(root) = 1;
 ptr = 2;
 %% BFS
-x0 = [0, 0 , 0 , 0 , 0, 1].';
-x = x0;
+x0 = zeros(nb,1);
+x0(root) = 1;
 while ptr <= length(nmap)
-    x = A'*x;
-    new_nodes = find(x);
-    for k = new_nodes.'
-        if nmap(k) == 0
-            nmap(k) = ptr;
-            ptr = ptr + 1;
-        end
+    x = (A'*x0) | x0;
+    new_nodes = find(x - x0);
+    for k = new_nodes.'    
+        nmap(k) = ptr;
+        ptr = ptr + 1;
     end
+    x0 = x;
 end
-fnew = nmap(f);
-tnew = nmap(t);
-
-% x1 = logical(A'*x0);
-% new_nodes = find(x1);
-% for k = new_nodes.'
-%     if nmap(k) == 0
-%         nmap(k) = ptr;
-%         ptr = ptr + 1;
-%     end
-% end
-% 
-% x2 = logical(A'*x1);
-% new_nodes = find(x2);
-% for k = new_nodes.'
-%     if nmap(k) == 0
-%         nmap(k) = ptr;
-%         ptr = ptr + 1;
-%     end
-% end
-% 
-% x3 = logical(A'*x2);
-% new_nodes = find(x3);
-% for k = new_nodes.'
-%     if nmap(k) == 0
-%         nmap(k) = ptr;
-%         ptr = ptr + 1;
-%     end
-% end
+%% mapped outputs
+if nargout > 1
+    fnew = nmap(f);
+    tnew = nmap(t);
+end
+%%
+if showplots
+    labels = cell(nb,1);
+    for k = 1:nb
+        labels{k} = sprintf('%d->%d',k,nmap(k));
+    end
+    subplot(1,2,2)
+    plot(G,'Layout', 'layered', 'Sources', root, 'NodeLabel', labels)
+    title('New Lables')
+end
