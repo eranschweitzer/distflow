@@ -28,6 +28,8 @@ if nargin == 0
 elseif nargin < 3
     error('NodeRelabling: At least 3 arguments are required (unless running demo mode with 0 arguments)')
 end
+f = ensure_col_vect(f);
+t = ensure_col_vect(t);
 nl = length(f);
 nb = nl + 1;
 if ~all(sort(unique([f;t])) == (1:nb).')
