@@ -40,7 +40,7 @@ if nargin == 0
     
     bus      = struct('phase', nphasing, ...
                       'sy', {[0 0 0].', [1 0.9, 1.1].', [0.25 0.25].', 0.1, 0.3}.',...
-                      'yd', {[0 0 0].', [0 0 0].', [1/(1+1i*0.2), 0, 0].', 0, 0}.',...
+                      'yd', {[0 0 0].', 0 , [1/(1+1i*0.2), 0, 0].', 0, 0}.',...
                       'vref', 1.02);
     
 else
@@ -53,7 +53,11 @@ vref = bus(1).vref*avect;
 conn = connmats(bus,branch);
 sigma = getsigma(bus);
 Zconj = cellfun(@conj , {branch.Z},'UniformOutput', false);
-Y    = cellfun(@(x) inv(x), {branch.Z}, 'UniformOutput', false);
+if ~isfield(branch, 'Y')
+    Y    = cellfun(@(x) inv(x), {branch.Z}, 'UniformOutput', false);
+else
+    Y = {branch.Y};
+end
 Yconj= cellfun(@conj, Y, 'UniformOutput', false);
 % [branch.Zc] = tmp{:};
 v0   = v0vec(vec(vref*vref'), ephasing);
