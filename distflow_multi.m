@@ -63,10 +63,10 @@ Yconj= cellfun(@conj, Y, 'UniformOutput', false);
 v0   = v0vec(vec(vref*vref'), ephasing);
 zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye','gamma',nphasing(2:end));
 eta  = kdiag('eye', {branch.Z}, ephasing) *conn.B*conn.TE*kdiag('gammac','eye',nphasing(2:end));
-if isfield(bus, 'yd')
-    [yd, ydc] = ydelta(bus);
-    K = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag(yd, 'eye', nphasing(2:end)) + ...
-        kdiag('eye', {branch.Z}, ephasing)*conn.B*conn.TE*kdiag('eye', ydc, nphasing(2:end));
+if isfield(bus, 'yd') || isfield(bus, 'Ysh')
+    [yl, ylc] = yload(bus);
+    K = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag(yl, 'eye', nphasing(2:end)) + ...
+        kdiag('eye', {branch.Z}, ephasing)*conn.B*conn.TE*kdiag('eye', ylc, nphasing(2:end));
 else
     K = 0;
 end
@@ -124,20 +124,32 @@ S.B = inv(S.I - S.T*S.F');
 
 S.U = unvecd(nphasing(2:end));
 
-function [yd, ydc] = ydelta(bus)
+function [yl, ylc] = yload(bus)
 D = [1 -1 0; 0 1 -1; -1 0 1];
-yd = cell(length(bus)-1, 1);
+ydflag = isfield(bus,'yd');
+yshflag = isfield(bus,'Ysh');
+yl = cell(length(bus)-1, 1);
 for k = 2:length(bus)
-    if length(bus(k).phase) < 2
+    %%% delta portion
+    if ~ydflag
+        yd = 0;
+    elseif (length(bus(k).phase) < 2)
         if any(bus(k).yd ~= 0)
             warning('distflow_multi: Ignoring delta load on single phase bus.')
         end
-        yd{k-1} = 0;
-        continue
+        yd = 0;
+    else
+        yd = D(:,bus(k).phase)'*diag(conj(bus(k).yd))*D(:,bus(k).phase);
     end
-    yd{k-1} = D(:,bus(k).phase)'*diag(conj(bus(k).yd))*D(:,bus(k).phase);
+    %%% shunt portion
+    if ~yshflag
+        ysh = 0;
+    else
+        ysh = bus(k).Ysh';
+    end
+    yl{k-1} = (ysh + yd).'; %note only transpose, NOT hermitian.
 end
-ydc = cellfun(@conj, yd, 'UniformOutput', false);
+ylc = cellfun(@conj, yl, 'UniformOutput', false);
 
 function sigma = getsigma(bus)
 
@@ -147,8 +159,12 @@ vidx = cell(length(bus)-1,1);
 ptr = 0;
 for k = 2:length(bus)
     if ~all(bus(k).sy == 0)
-        vidx{k} = bus(k).sy;
+        vidx{k} = ensure_col_vect(bus(k).sy);
         ridx{k} = ptr + idx{length(bus(k).phase)};
+        if length(vidx{k}) ~= length(ridx{k})
+            error('distflow_multi: inconsistent sizes on bus %d between phase (%d x 1) and sy (%d x 1)', ...
+                k, length(bus(k).phase), length(bus(k).sy))
+        end
     end
     ptr = ptr + length(bus(k).phase)^2;
 end
@@ -237,6 +253,7 @@ end
 U = sparse(ridx, cell2mat(cidx),1, n, ptr);
 
 function bus = updatebus(bus,v)
+bus(1).vm = bus(1).vref*ones(length(bus(1).phase),1);
 ptr = 0;
 for k = 2:length(bus)
     bus(k).vm = v(ptr + (1:length(bus(k).phase)));
