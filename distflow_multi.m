@@ -1,4 +1,4 @@
-function bus = distflow_multi(bus, branch, alpha)
+function bus = distflow_multi(bus, branch, opt)
 %%%    bus is an nx1 structure array with fields
 %%%         - vref scalar reference voltage magnitude (p.u.) (source is
 %%%         assumed to be 3 phase balanced)
@@ -18,8 +18,9 @@ a = exp(-1i*2*pi/3);
 avect = [1; a; a^2];
 idx = reshape(1:9,3,3);
 if nargin < 3
-    alpha = 0.5;
+    opt = [];
 end
+opt = optdefaults(opt);
 if nargin == 0
     %%% Demo
     %%% a1 ---- b1 ----- c1
@@ -70,9 +71,31 @@ if isfield(bus, 'yd') || isfield(bus, 'Ysh')
 else
     K = 0;
 end
-Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
-        kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
-Beta  = 2*alpha*conn.I - (1-2*alpha)*Gamma;
+
+switch opt.alpha_method
+    case 1
+        if length(opt.alpha) ~= 1
+            error('distflow_multi: when using alpha_method 1 the value for alpha must be a scalar.')
+        end
+        Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
+                kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
+        Beta  = 2*opt.alpha*conn.I - (1-2*opt.alpha)*Gamma;
+    case 2
+        if length(opt.alpha) ~= 1
+            error('distflow_multi: when using alpha_method 2 the value for alpha must be a scalar.')
+        end
+        alphavect = 0.5*ones(conn.E,1);
+        alphavect(logical(sum(conn.U,1))) = opt.alpha;
+        alphaDiag = sparse(1:conn.E, 1:conn.E, alphavect, conn.E, conn.E);
+        
+        Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
+                kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
+        Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
+    otherwise
+        error('distflow_multi: alpha method %d is not implemented', opt.alpha_method)
+end
+
+
 
 %% solve
 nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
@@ -258,4 +281,25 @@ ptr = 0;
 for k = 2:length(bus)
     bus(k).vm = v(ptr + (1:length(bus(k).phase)));
     ptr = ptr + length(bus(k).phase);
+end
+
+function opt = optdefaults(opt)
+optd = struct('alpha', 0.5, 'alpha_method', 1);
+if isempty(opt)
+    opt = optd;
+else
+    opt = struct_compare(optd, opt);
+end
+
+function b = struct_compare(a, b)
+% compares structure b to structure a.
+% if b lacks a field in a it is added
+% this is performed recursively, so if if a.x is a structure
+% and b has field x, the the function is called on (a.x, b.x)
+for f = fieldnames(a).'
+	if ~isfield(b, f{:})
+		b.(f{:}) = a.(f{:});
+	elseif isstruct(a.(f{:}))
+		b.(f{:}) = struct_compare(a.(f{:}), b.(f{:}));
+	end
 end
