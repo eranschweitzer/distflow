@@ -91,6 +91,22 @@ switch opt.alpha_method
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
+    case 3
+        if length(opt.alpha) ~= 2
+            warning('distflow_multi: when using alpha_method 3 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
+        end
+        maxz = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
+        minz = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
+        slope = (opt.alpha(end) - opt.alpha(1))/(minz - maxz);
+        dalpha = cell(length(branch),1);
+        for k = 1:length(branch)
+%             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
+            dalpha{k} = (1 - 2*(opt.alpha(1) + slope*(max(abs(diag(branch(k).Z)) - maxz))))*eye(length(branch(k).phase));
+        end
+        Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
+           kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
+           kdiag('eye', dalpha, ephasing);
+        Beta  = conn.I - Gamma;
     otherwise
         error('distflow_multi: alpha method %d is not implemented', opt.alpha_method)
 end
@@ -101,7 +117,8 @@ end
 nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
 v2 = conn.U*nu;
 if max(abs(imag(v2))) > 1e-8
-    warning('distflow_multi: imaginary entries in v^2 with magnitude larger than 1e-8 found.\n\t These are discarded in the result')
+    warning(['distflow_multi: imaginary entries in v^2 with magnitude larger than 1e-8 found.\n\t',...
+             'Max imaginary magnitude is %0.4g.\n\t These are discarded in the result'], max(abs(imag(v2))))
 end
 v = sqrt(real(v2));
 bus = updatebus(bus,v);
