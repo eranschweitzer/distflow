@@ -91,27 +91,37 @@ switch opt.alpha_method
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
-    case {3,4}
+    case {3,4,5,6}
         if length(opt.alpha) ~= 2
-            warning('distflow_multi: when using alpha_method 3 or 4 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
+            warning('distflow_multi: when using alpha_method 3-6 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
         end
-        maxz = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
-        minz = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
-        if opt.alpha_method == 3
-            slope = (opt.alpha(end) - opt.alpha(1))/(minz - maxz);
-            intercept = opt.alpha(end) - slope*minz;
-        elseif opt.alpha_method == 4
-            slope = (opt.alpha(end) - opt.alpha(1))/(minz^2 - maxz^2);
-            intercept = opt.alpha(end) - slope*minz^2;
+        if ismember(opt.alpha_method, [3,4])
+            maxx = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
+            minx = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
+        elseif ismember(opt.alpha_method, [5,6])
+            sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
+            maxx = max(cellfun(@(x) full(max(abs(x))), sdp));
+            minx = min(cellfun(@(x) full(min(abs(x))), sdp));
+        end
+        if ismember(opt.alpha_method, [3,5])
+            slope = (opt.alpha(end) - opt.alpha(1))/(minx - maxx);
+            intercept = opt.alpha(end) - slope*minx;
+        elseif ismember(opt.alpha_method, [4,6])
+            slope = (opt.alpha(end) - opt.alpha(1))/(minx^2 - maxx^2);
+            intercept = opt.alpha(end) - slope*minx^2;
         end
         dalpha = cell(length(branch),1);
         for k = 1:length(branch)
 %             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
-            z = max(abs(diag(branch(k).Z)));
-            if opt.alpha_method == 4
-                z = z^2;
+            if ismember(opt.alpha_method, [3,4])
+                x = max(abs(diag(branch(k).Z)));
+            elseif ismember(opt.alpha_method, [5,6])
+                x = max(abs(sdp{k}));
             end
-            dalpha{k} = (1 - 2*(slope*z + intercept))*eye(length(branch(k).phase));
+            if ismember(opt.alpha_method, [4,6])
+                x = x^2;
+            end
+            dalpha{k} = (1 - 2*(slope*x + intercept))*eye(length(branch(k).phase));
         end
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
            kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
@@ -301,6 +311,25 @@ for k = 1:length(phasing)
     ptr = ptr + length(phasing{k})^2;
 end
 U = sparse(ridx, cell2mat(cidx),1, n, ptr);
+
+function C = vect2cell(x, phasing, sq)
+%%% take vector x and split it up into a cell of size(phasing).
+%%% sq says wether to step the pointer linearly (false, default) or squaring the
+%%% length of the phase vectors (true)
+if nargin < 3
+    sq = false;
+end
+C = cell(length(phasing),1);
+ptr1 = 0;
+for k = 1:length(phasing)
+    if ~sq
+        ptr2 = ptr1 + length(phasing{k});
+    else
+        ptr2 = ptr1 + length(phasing{k})^2;
+    end
+    C{k} = x(ptr1+1:ptr2);
+    ptr1 = ptr2;
+end
 
 function bus = updatebus(bus,v)
 bus(1).vm = bus(1).vref*ones(length(bus(1).phase),1);
