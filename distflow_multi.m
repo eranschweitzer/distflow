@@ -91,17 +91,27 @@ switch opt.alpha_method
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
-    case 3
+    case {3,4}
         if length(opt.alpha) ~= 2
-            warning('distflow_multi: when using alpha_method 3 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
+            warning('distflow_multi: when using alpha_method 3 or 4 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
         end
         maxz = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
         minz = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
-        slope = (opt.alpha(end) - opt.alpha(1))/(minz - maxz);
+        if opt.alpha_method == 3
+            slope = (opt.alpha(end) - opt.alpha(1))/(minz - maxz);
+            intercept = opt.alpha(end) - slope*minz;
+        elseif opt.alpha_method == 4
+            slope = (opt.alpha(end) - opt.alpha(1))/(minz^2 - maxz^2);
+            intercept = opt.alpha(end) - slope*minz^2;
+        end
         dalpha = cell(length(branch),1);
         for k = 1:length(branch)
 %             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
-            dalpha{k} = (1 - 2*(opt.alpha(1) + slope*(max(abs(diag(branch(k).Z)) - maxz))))*eye(length(branch(k).phase));
+            z = max(abs(diag(branch(k).Z)));
+            if opt.alpha_method == 4
+                z = z^2;
+            end
+            dalpha{k} = (1 - 2*(slope*z + intercept))*eye(length(branch(k).phase));
         end
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
            kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
