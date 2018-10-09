@@ -1,10 +1,12 @@
-function lateral_plot(bus, branch, ref)
+function lateral_plot(bus, branch, ref, varargin)
 
 if nargin < 3
     refflag = 0;
 else
     refflag = 1;
 end
+
+diffplot = ismember('diffplot', varargin);
 
 ephasing = {branch.phase}.';
 nphasing = {bus.phase}.';
@@ -56,21 +58,29 @@ cmap = colormap('lines');
 for phi = 1:3
     subplot(3,1,phi)
     for l = 1:length(laterals{phi})
-        if refflag
-            plot(laterals{phi}{l}(:,1), laterals{phi}{l}(:,3),'k--', 'Marker','.', 'MarkerSize', 10);
-            hold on;
+        if refflag && diffplot
+            plot(laterals{phi}{l}(:,1),laterals{phi}{l}(:,3) - laterals{phi}{l}(:,2),'Color', cmap(1,:), 'Marker','.', 'MarkerSize', 10);
+        else
+            if refflag
+                plot(laterals{phi}{l}(:,1), laterals{phi}{l}(:,3),'k--', 'Marker','.', 'MarkerSize', 10);
+                hold on;
+            end
+            plot(laterals{phi}{l}(:,1), laterals{phi}{l}(:,2),'Color', cmap(1,:), 'Marker','.', 'MarkerSize', 10);
         end
-        plot(laterals{phi}{l}(:,1), laterals{phi}{l}(:,2),'Color', cmap(1,:), 'Marker','.', 'MarkerSize', 10);
         if l == 1
             hold on;
         end
     end
-    if refflag
+    if refflag && ~diffplot
         legend('opendss', 'distflow')
     end
     title(sprintf('Phase %d', phi))
     xlabel('Node Number')
-    ylabel('Voltage Magnitude [p.u]')
+    if diffplot
+        ylabel('Vm_{OpenDss} - Vm_{DistFlow} [p.u]')
+    else
+        ylabel('Vm [p.u]')
+    end
     set(gca, 'FontSize', 16)
     xlim([1, nb])
 end
