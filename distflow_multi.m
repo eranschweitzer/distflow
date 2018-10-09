@@ -67,7 +67,8 @@ switch opt.gamma_method
         zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye','gamma',nphasing(2:end));
         eta  = kdiag('eye', {branch.Z}, ephasing) *conn.B*conn.TE*kdiag('gammac','eye',nphasing(2:end));
     case 2
-        bustmp = distflow_multi(bus,branch,struct('alpha',0.5, 'alpha_method', 1));
+        bustmp = distflow_multi(bus,branch,opt.bustmpopt);
+%         bustmp = bus;
 %         [g, gc] = branchgamma(conn, sigma, Zconj, ephasing);
         [g, gc] = branchgamma(bustmp, branch);
         zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye',g,nphasing(2:end));
@@ -152,7 +153,15 @@ end
 
 
 %% solve
-nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
+if opt.calcmu
+    if ~exist('bustmp','var')
+        bustmp = distflow_multi(bus,branch,opt.bustmpopt);
+    end
+    mu = getmu(bustmp, branch);
+    nu = (Gamma*conn.M + 2*(Gamma+conn.I) + K)\(Gamma*conn.M*v0 - zeta*sigma - eta*conj(sigma) + (Gamma + conn.I)*mu);
+else
+    nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
+end
 v2 = conn.U*nu;
 if max(abs(imag(v2))) > 1e-8
     warning(['distflow_multi: imaginary entries in v^2 with magnitude larger than 1e-8 found.\n\t',...
@@ -267,10 +276,16 @@ g = gamma(phases,phases);
 % gc = cellfun(@(x) conj(x), g, 'UniformOutput', false);
 function [g, gc] = branchgamma(bustmp, branch)
 
-
 v = cellfun(@(x,y) full(sparse( double(x), 1, y, 3, 1)), {bustmp([branch.f]).phase}, {bustmp([branch.f]).vm}, 'UniformOutput', false);
 g = cellfun(@(x,y) ((1./x(y))*x(y).').*gamma_phi(y), v, {branch.phase}, 'UniformOutput', false);
 gc = cellfun(@(x) conj(x), g, 'UniformOutput', false);
+
+function mu = getmu(bustmp, branch)
+
+v = cellfun(@(x,y) full(sparse( double(x), 1, y, 3, 1)), {bustmp.phase}, {bustmp.vm}, 'UniformOutput', false);
+m = cellfun(@(f,t,phi) diag(v{f}(phi))*gamma_phi(phi)*diag(v{t}(phi)) + diag(v{t}(phi))*gamma_phi(phi)*diag(v{f}(phi)),...
+    {branch.f}, {branch.t}, {branch.phase}, 'UniformOutput', false);
+mu = cell2mat(cellfun(@vec, m, 'UniformOutput', false).');
 
 function [v0, I0] = v0vec(vref, ephasing)
 %%% phasing is a n-1 x 1 cell array where each entry contains a vector with 
@@ -375,7 +390,7 @@ for k = 2:length(bus)
 end
 
 function opt = optdefaults(opt)
-optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1);
+optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1, 'calcmu', 0, 'bustmpopt', []);
 if isempty(opt)
     opt = optd;
 else
