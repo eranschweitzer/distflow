@@ -62,8 +62,17 @@ end
 Yconj= cellfun(@conj, Y, 'UniformOutput', false);
 % [branch.Zc] = tmp{:};
 v0   = v0vec(vec(vref*vref'), ephasing);
-zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye','gamma',nphasing(2:end));
-eta  = kdiag('eye', {branch.Z}, ephasing) *conn.B*conn.TE*kdiag('gammac','eye',nphasing(2:end));
+switch opt.gamma_method
+    case 1
+        zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye','gamma',nphasing(2:end));
+        eta  = kdiag('eye', {branch.Z}, ephasing) *conn.B*conn.TE*kdiag('gammac','eye',nphasing(2:end));
+    case 2
+        bustmp = distflow_multi(bus,branch,struct('alpha',0.5, 'alpha_method', 1));
+%         [g, gc] = branchgamma(conn, sigma, Zconj, ephasing);
+        [g, gc] = branchgamma(bustmp, branch);
+        zeta = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag('eye',g,nphasing(2:end));
+        eta  = kdiag('eye', {branch.Z}, ephasing) *conn.B*conn.TE*kdiag(gc,'eye',nphasing(2:end));
+end
 if isfield(bus, 'yd') || isfield(bus, 'Ysh')
     [yl, ylc] = yload(bus);
     K = kdiag(Zconj, 'eye', ephasing)*conn.B*conn.TE*kdiag(yl, 'eye', nphasing(2:end)) + ...
@@ -246,6 +255,23 @@ gamma = [1  , a^2, a  ;
          a^2, a  , 1];
 g = gamma(phases,phases);
 
+% function [g, gc] = branchgamma(conn, sigma, Zconj, ephasing)
+% 
+% S = conn.B*conn.TE*sigma;
+% Zc= conn.B*conn.TE*cell2mat(cellfun(@vec, Zconj.', 'UniformOutput', false));
+% % v = conn.U*spfun(@(x) 1./x, sqrt(abs(S.*Zc)));
+% v = conn.U*spfun(@(x) 1./x, sqrt(abs(S)));
+% v(v==0) = 1;
+% v = vect2cell(v, ephasing, 0);
+% g = cellfun(@(x,y) ((1./x)*x.').*gamma_phi(y), v, ephasing, 'UniformOutput', false);
+% gc = cellfun(@(x) conj(x), g, 'UniformOutput', false);
+function [g, gc] = branchgamma(bustmp, branch)
+
+
+v = cellfun(@(x,y) full(sparse( double(x), 1, y, 3, 1)), {bustmp([branch.f]).phase}, {bustmp([branch.f]).vm}, 'UniformOutput', false);
+g = cellfun(@(x,y) ((1./x(y))*x(y).').*gamma_phi(y), v, {branch.phase}, 'UniformOutput', false);
+gc = cellfun(@(x) conj(x), g, 'UniformOutput', false);
+
 function [v0, I0] = v0vec(vref, ephasing)
 %%% phasing is a n-1 x 1 cell array where each entry contains a vector with 
 %%% the phasing of the given branch. For example, if branch 7 (that one whose
@@ -349,7 +375,7 @@ for k = 2:length(bus)
 end
 
 function opt = optdefaults(opt)
-optd = struct('alpha', 0.5, 'alpha_method', 1);
+optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1);
 if isempty(opt)
     opt = optd;
 else
