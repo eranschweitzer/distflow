@@ -91,37 +91,46 @@ switch opt.alpha_method
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
-    case {3,4,5,6}
+    case {3,4,5,6,7,8,9,10}
         if length(opt.alpha) ~= 2
             warning('distflow_multi: when using alpha_method 3-6 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
         end
-        if ismember(opt.alpha_method, [3,4])
+        if ismember(opt.alpha_method, [3,4,7,8])
             maxx = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
             minx = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
-        elseif ismember(opt.alpha_method, [5,6])
+        elseif ismember(opt.alpha_method, [5,6,9,10])
             sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
             maxx = max(cellfun(@(x) full(max(abs(x))), sdp));
             minx = min(cellfun(@(x) full(min(abs(x))), sdp));
         end
-        if ismember(opt.alpha_method, [3,5])
+        if ismember(opt.alpha_method, [3,5,7,9])
             slope = (opt.alpha(end) - opt.alpha(1))/(minx - maxx);
             intercept = opt.alpha(end) - slope*minx;
-        elseif ismember(opt.alpha_method, [4,6])
+        elseif ismember(opt.alpha_method, [4,6,8,10])
             slope = (opt.alpha(end) - opt.alpha(1))/(minx^2 - maxx^2);
             intercept = opt.alpha(end) - slope*minx^2;
         end
         dalpha = cell(length(branch),1);
         for k = 1:length(branch)
 %             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
-            if ismember(opt.alpha_method, [3,4])
-                x = max(abs(diag(branch(k).Z)));
-            elseif ismember(opt.alpha_method, [5,6])
-                x = max(abs(sdp{k}));
+            switch opt.alpha_method
+                case {3,4}
+                    x = max(abs(diag(branch(k).Z)));
+                case {5,6}
+                    x = max(abs(sdp{k}));
+                case {7,8}
+                    x = abs(diag(branch(k).Z));
+                case {9,10}
+                    x = abs(sdp{k});
             end
-            if ismember(opt.alpha_method, [4,6])
-                x = x^2;
+            if ismember(opt.alpha_method, [4,6,8,10])
+                x = x.^2;
             end
-            dalpha{k} = (1 - 2*(slope*x + intercept))*eye(length(branch(k).phase));
+            if ismember(opt.alpha_method, 3:6)
+                dalpha{k} = (1 - 2*(slope*x + intercept))*eye(length(branch(k).phase));
+            elseif ismember(opt.alpha_method, 7:10)
+                dalpha{k} = eye(length(branch(k).phase)) - 2*diag(slope*x + intercept);
+            end
         end
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
            kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
