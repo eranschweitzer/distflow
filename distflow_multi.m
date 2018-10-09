@@ -163,7 +163,7 @@ else
     nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
 end
 v2 = conn.U*nu;
-if max(abs(imag(v2))) > 1e-8
+if (max(abs(imag(v2))) > 1e-8) && ~opt.suppress_warnings
     warning(['distflow_multi: imaginary entries in v^2 with magnitude larger than 1e-8 found.\n\t',...
              'Max imaginary magnitude is %0.4g.\n\t These are discarded in the result'], max(abs(imag(v2))))
 end
@@ -390,7 +390,7 @@ for k = 2:length(bus)
 end
 
 function opt = optdefaults(opt)
-optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1, 'calcmu', 0, 'bustmpopt', []);
+optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1, 'calcmu', 0, 'bustmpopt', [], 'suppress_warnings', 0);
 if isempty(opt)
     opt = optd;
 else
