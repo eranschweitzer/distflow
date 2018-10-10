@@ -120,7 +120,12 @@ switch opt.alpha_method
             slope = (opt.alpha(end) - opt.alpha(1))/(minx^2 - maxx^2);
             intercept = opt.alpha(end) - slope*minx^2;
         end
-        dalpha = cell(length(branch),1);
+%         if ismember(opt.alpha_method, 7:10)
+            ydalpha = cell(length(branch),1);
+            ycalpha = cell(length(branch),1);
+%         else
+%             dalpha = cell(length(branch),1);
+%         end
         for k = 1:length(branch)
 %             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
             switch opt.alpha_method
@@ -137,14 +142,25 @@ switch opt.alpha_method
                 x = x.^2;
             end
             if ismember(opt.alpha_method, 3:6)
-                dalpha{k} = (1 - 2*(slope*x + intercept))*eye(length(branch(k).phase));
+%                 dalpha{k} = (1 - 2*(slope*x + intercept))*eye(length(branch(k).phase));
+                ydalpha{k} = Y{k}*(1 - diag(slope*x + intercept))*eye(length(branch(k).phase));
+                ycalpha{k} = Yconj{k}*diag(slope*x + intercept)*eye(length(branch(k).phase));
             elseif ismember(opt.alpha_method, 7:10)
-                dalpha{k} = eye(length(branch(k).phase)) - 2*diag(slope*x + intercept);
+%                 dalpha{k} = eye(length(branch(k).phase)) - 2*diag(slope*x + intercept);
+                ydalpha{k} = Y{k}*(eye(length(branch(k).phase)) - diag(slope*x + intercept));
+                ycalpha{k} = Yconj{k}*diag(slope*x + intercept);
             end
         end
-        Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
-           kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
-           kdiag('eye', dalpha, ephasing);
+%         if ismember(opt.alpha_method, 7:10)
+            C = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag('eye',{branch.Z},ephasing) +...
+            kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag(Zconj,'eye', ephasing) +...
+            kdiag(Zconj,{branch.Z}, ephasing);
+            Gamma = C*(kdiag(Yconj, ydalpha, ephasing) - kdiag(ycalpha, Y, ephasing));
+%         else
+%             Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, dalpha, ephasing) + ...
+%             kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye',cellfun(@(x,y) x*y, ensure_col_vect(Y), dalpha, 'UniformOutput', false), ephasing) +...
+%             kdiag('eye', dalpha, ephasing);
+%         end
         Beta  = conn.I - Gamma;
     otherwise
         error('distflow_multi: alpha method %d is not implemented', opt.alpha_method)
