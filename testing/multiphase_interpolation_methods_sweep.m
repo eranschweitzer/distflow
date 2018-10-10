@@ -30,21 +30,22 @@ parfor k = 1:numel(amin)
     
     restmp = cell(1,2*length(mtds));
     for kk = 1:length(mtds)
-				mtd = mtds(kk);
+		mtd = mtds(kk);
 
-    		opt = struct('suppress_warnings', 1);
-    		opt.alpha = [amin(k), amax(k)];
+%     	opt = struct('suppress_warnings', 1);
+        opt = struct();
+    	opt.alpha = [amin(k), amax(k)];
         opt.alpha_method = mtd;
         r = distflow_multi(Bus, Branch, opt);
         restmp{kk} = vertcat(r.vm);
 				
-				opt.bustmpopt = opt;
-				opt.calcmu = 1;
-				opt.alpha = 0.5;
-				opt.alpha_method=1;
-				opt.gamma_method=2;
+		opt.bustmpopt = opt;
+		opt.calcmu = 1;
+		opt.alpha = 0.5;
+		opt.alpha_method=1;
+		opt.gamma_method=2;
         r = distflow_multi(Bus, Branch, opt);
-				restmp{kk + length(mtds)} = vertcat(r.vm);
+		restmp{kk + length(mtds)} = vertcat(r.vm);
     end
     res(k,:) = restmp;
 end
