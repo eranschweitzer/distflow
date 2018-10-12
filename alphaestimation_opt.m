@@ -1,9 +1,20 @@
 clear variables
 close all
 %%
+% methods:
+%   2: linear interpolation based on branch impedance
+%   3: quadradic interpolation based on branch impedance
+%   4: linear interpolation based on downstream power
+%   5: quadratic interpolation based on downstream power
+%   6: linear interpolation based on branch impedance TIMES downstream
+%      power
+%   7: quadratic interpolation based on branch impedance TIMES downstream
+%      power
 define_constants;
-feeder_sizes = 10:10:500; % number of nodes for samples
-alpha_range  = 0.49:0.0001:0.5;
+feeder_sizes = 10:10:600; % number of nodes for samples
+alpha_range  = 0.4:0.0001:0.6;
+[amin, amax] = meshgrid(alpha_range);
+mtds = 2:7;
 nsamples = 100;           % number of samples per feeder size
 
 mpopt  = mpoption('out.all',0, 'verbose', 0);
@@ -11,7 +22,7 @@ mpopt2 = mpopt;
 mpopt2.pf.alg = 'ISUM';
 mpopt2.pf.radial.max_it = 500;
 %% proccess samples
-alpha = cell(length(feeder_sizes), 1);
+errs = cell(length(feeder_sizes), 1);
 if isempty(gcp('nocreate'))
     parpool(min(length(feeder_sizes),60));
 end
@@ -42,23 +53,30 @@ parfor k = 1:length(feeder_sizes)
                 continue
             end
         end
-        err = zeros(length(alpha_range), 1);
-        for kk = 1:length(alpha_range)
-            a = alpha_range(kk);
-            [v, pf, qf] = distflow_lossy(r, a);
-            err(kk) = norm(r.bus(:,VM) - v, 2) +...
+%         err = zeros(length(alpha_range), 1);
+        err = zeros(numel(amin), length(mtds));
+        for kk = 1:length(err)
+%         for kk = 1:length(alpha_range)
+            for midx = 1:length(mtds)
+                mtd = mtds(midx);
+                opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
+%                 a = alpha_range(kk);
+                [v, pf, qf] = distflow_lossy(r, opt);
+                err(kk, midx) = (norm(r.bus(2:end,VM) - v(2:end), 2) +...
                       norm( (r.branch(:,PF) - pf)/r.baseMVA, 2) + ...
-                      norm( (r.branch(:,QF) - qf)/r.baseMVA, 2);
+                      norm( (r.branch(:,QF) - qf)/r.baseMVA, 2)) / (fz-1);
+            end
         end
-        [~, idx]  = min(err);
-        tmp{iter} = alpha_range(idx);
+%         [ev, idx]  = min(err);
+%         tmp{iter} = alpha_range(idx);
+        tmp{iter} = err;
     end
-    alpha{k} = vertcat(tmp{:});
+    errs{k} = tmp;
 end
 delete(gcp('nocreate'))
 %% alpha statistics
-stats.mean = cellfun(@mean, alpha);
-stats.std  = cellfun(@std,  alpha);
-stats.median = cellfun(@median, alpha);
+% stats.mean = cellfun(@mean, alpha);
+% stats.std  = cellfun(@std,  alpha);
+% stats.median = cellfun(@median, alpha);
 %% save
-save('alphaest_opt.mat', 'alpha', 'feeder_sizes', 'nsamples', 'stats', '-v7.3')
+save('alphaest_opt_with_mtds.mat', 'errs', 'feeder_sizes', 'nsamples', 'alpha_range', 'mtds', '-v7.3')
