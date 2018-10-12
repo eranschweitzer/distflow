@@ -17,7 +17,7 @@ end
 if nargin < 2
     opt = [];
 end
-if isscalar(opt)
+if isscalar(opt) && ~isstruct(opt)
     opt = struct('alpha', opt, 'alpha_method', 1);
 end
 opt = optdefaults(opt);
