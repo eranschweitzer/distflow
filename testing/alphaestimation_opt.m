@@ -77,7 +77,7 @@ for k = 1:length(feeder_sizes)
                 [v, pf, qf] = distflow_lossy(r, opt);
                 tmperr(midx) = (norm(vtrue - v(2:end), 2) +...
                       norm( (ptrue - pf)/r.baseMVA, 2) + ...
-                      norm( (qtrue - qf)/r.baseMVA, 2)) / (fz-1);
+                      norm( (qtrue - qf)/r.baseMVA, 2)) / sqrt(fz-1);
             end
 						err(kk,:) = tmperr;
         end
