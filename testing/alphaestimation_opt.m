@@ -1,5 +1,4 @@
-clear variables
-close all
+function errs = alphaestimation_opt(feeder_sizes, fname, mtds)
 %%
 % methods:
 %   2: linear interpolation based on branch impedance
@@ -10,11 +9,16 @@ close all
 %      power
 %   7: quadratic interpolation based on branch impedance TIMES downstream
 %      power
+if nargin < 3
+	mtds = 2:8;
+	if (nargin < 2) || isempty(fname)
+		fname = sprintf('alphaest_opt_with_mtds_%dto%d.mat', min(feeder_sizes), max(feeder_sizes));
+	end
+end
 define_constants;
-feeder_sizes = 10:10:600; % number of nodes for samples
-alpha_range  = 0.4:0.0001:0.6;
+%feeder_sizes = 10:10:600; % number of nodes for samples
+alpha_range  = 0.4:0.001:0.6;
 [amin, amax] = meshgrid(alpha_range);
-mtds = 2:7;
 nsamples = 100;           % number of samples per feeder size
 
 mpopt  = mpoption('out.all',0, 'verbose', 0);
@@ -24,13 +28,18 @@ mpopt2.pf.radial.max_it = 500;
 %% proccess samples
 errs = cell(length(feeder_sizes), 1);
 if isempty(gcp('nocreate'))
-    parpool(min(length(feeder_sizes),60));
+    parpool(min(numel(amin),60));
 end
-parfor k = 1:length(feeder_sizes)
+for k = 1:length(feeder_sizes)
     fz = feeder_sizes(k);
     fprintf('Running samples of size %d (%d of %d)...\n',fz,k,length(feeder_sizes))
     tmp = cell(nsamples,1);
+		status = 0.025; status_step = 0.025;
     for iter = 1:nsamples
+				if (iter/nsamples) >= status
+					fprintf('\t%0.1f%% complete.\n', status*100)
+					status = status + status_step;
+				end
         [n,e] = single_feeder_gen(fz);
         mpc = matpower_fmt(n,e,60);
         mpc = parallel_branch_join(mpc);
@@ -53,19 +62,24 @@ parfor k = 1:length(feeder_sizes)
                 continue
             end
         end
+				vtrue = r.bus(2:end,VM);
+				ptrue = r.branch(:,PF);
+				qtrue = r.branch(:,QF);
 %         err = zeros(length(alpha_range), 1);
         err = zeros(numel(amin), length(mtds));
-        for kk = 1:length(err)
+        parfor kk = 1:length(err)
 %         for kk = 1:length(alpha_range)
+						tmperr = zeros(1, length(mtds));
             for midx = 1:length(mtds)
                 mtd = mtds(midx);
                 opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
 %                 a = alpha_range(kk);
                 [v, pf, qf] = distflow_lossy(r, opt);
-                err(kk, midx) = (norm(r.bus(2:end,VM) - v(2:end), 2) +...
-                      norm( (r.branch(:,PF) - pf)/r.baseMVA, 2) + ...
-                      norm( (r.branch(:,QF) - qf)/r.baseMVA, 2)) / (fz-1);
+                tmperr(midx) = (norm(vtrue - v(2:end), 2) +...
+                      norm( (ptrue - pf)/r.baseMVA, 2) + ...
+                      norm( (qtrue - qf)/r.baseMVA, 2)) / (fz-1);
             end
+						err(kk,:) = tmperr;
         end
 %         [ev, idx]  = min(err);
 %         tmp{iter} = alpha_range(idx);
@@ -79,4 +93,4 @@ delete(gcp('nocreate'))
 % stats.std  = cellfun(@std,  alpha);
 % stats.median = cellfun(@median, alpha);
 %% save
-save('alphaest_opt_with_mtds.mat', 'errs', 'feeder_sizes', 'nsamples', 'alpha_range', 'mtds', '-v7.3')
+save(fname, 'errs', 'feeder_sizes', 'nsamples', 'alpha_range', 'mtds', '-v7.3')
