@@ -71,6 +71,7 @@ else
 %      power
 %   7: quadratic interpolation based on branch impedance TIMES downstream
 %      power
+%   8: linear interpolation (power^2)*(r^2+x^2)
     
     switch mtd
         case {2,3}
@@ -79,6 +80,8 @@ else
             v = abs(B*T*(pc + 1i*qc));
         case {6,7}
             v = sqrt(r.^2 + x.^2).*abs(B*T*(pc + 1i*qc));
+				case 8
+            v = (r.^2 + x.^2).*abs(B*T*(pc + 1i*qc)).^2;
         otherwise
             error('distflow_lossy: method %d not implemented.', mtd)
     end
