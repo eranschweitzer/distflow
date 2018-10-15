@@ -231,6 +231,7 @@ function [yl, ylc] = yload(bus)
 D = [1 -1 0; 0 1 -1; -1 0 1];
 ydflag = isfield(bus,'yd');
 yshflag = isfield(bus,'Ysh');
+yyflag  = isfield(bus,'yy');
 yl = cell(length(bus)-1, 1);
 for k = 2:length(bus)
     %%% delta portion
@@ -250,7 +251,13 @@ for k = 2:length(bus)
     else
         ysh = bus(k).Ysh';
     end
-    yl{k-1} = (ysh + yd).'; %note only transpose, NOT hermitian.
+    %% constant impedance laod
+    if ~yyflag
+        yy = 0;
+    else
+        yy = diag(bus(k).yy)';
+    end
+    yl{k-1} = (ysh + yy + yd).'; %note only transpose, NOT hermitian.
 end
 ylc = cellfun(@conj, yl, 'UniformOutput', false);
 
