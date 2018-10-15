@@ -263,13 +263,21 @@ ylc = cellfun(@conj, yl, 'UniformOutput', false);
 
 function sigma = getsigma(bus)
 
+D = [1 -1 0; 0 1 -1; -1 0 1];
 idx  = {1, [1,4].', [1,5,9].'};
+sdflag = isfield(bus, 'sd');
 ridx = cell(length(bus)-1,1);
 vidx = cell(length(bus)-1,1);
 ptr = 0;
 for k = 2:length(bus)
-    if ~all(bus(k).sy == 0)
-        vidx{k} = ensure_col_vect(bus(k).sy);
+    if sdflag && ~all(bus(k).sd == 0)
+        sd = D(:,bus(k).phase).'*ensure_col_vect(bus(k).sd);
+    else
+        sd = 0;
+    end
+        
+    if any(bus(k).sy ~= 0) || (sd~=0)
+        vidx{k} = ensure_col_vect(bus(k).sy) + sd;
         ridx{k} = ptr + idx{length(bus(k).phase)};
         if length(vidx{k}) ~= length(ridx{k})
             error('distflow_multi: inconsistent sizes on bus %d between phase (%d x 1) and sy (%d x 1)', ...
