@@ -263,10 +263,12 @@ ylc = cellfun(@conj, yl, 'UniformOutput', false);
 
 function sigma = getsigma(bus)
 
-% D = [1 -1 0; 0 1 -1; -1 0 1];
-D = eye(3);
-A = 0.5*[1 -1 1; 1 1 -1; -1 1 1];
-B = [0 1 1; 1 0 1; 1 1 0];
+D = [1 -1 0; 0 1 -1; -1 0 1];
+% D = eye(3);
+% A = 0.5*[1 -1 1; 1 1 -1; -1 1 1];
+% B = [0 1 1; 1 0 1; 1 1 0];
+% tmp = exp(1i*pi/6);
+% B2 = [conj(tmp) 0 tmp; tmp conj(tmp) 0; 0 tmp conj(tmp)]; 
 idx  = {1, [1,4].', [1,5,9].'};
 sdflag = isfield(bus, 'sd');
 ridx = cell(length(bus)-1,1);
@@ -275,14 +277,16 @@ ptr = 0;
 for k = 2:length(bus)
     if sdflag && ~all(bus(k).sd == 0)
         tmpsd = ensure_col_vect(bus(k).sd);
-        switch sum(tmpsd ~=0 )
-            case  3
-                ztmp  = 1./conj(tmpsd);
-                tmp   = ztmp./(A*(ztmp.*(B*ztmp))/sum(ztmp));
-            otherwise
-                tmp = 3;
-        end
-        sd = diag(tmp)*D(:,bus(k).phase).'*tmpsd;
+%         switch sum(tmpsd ~=0 )
+%             case  3
+%                 ztmp  = 1./conj(tmpsd);
+%                 tmp   = ztmp./(A*(ztmp.*(B*ztmp))/sum(ztmp));
+%             otherwise
+%                 tmp = 3;
+%         end
+%         sd = diag(tmp)*D(:,bus(k).phase).'*tmpsd
+        sd = sqrt(3)*diag(D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
+%         sd = (sqrt(3)/1)*abs(B2(bus(k).phase,:))*tmpsd;
     else
         sd = 0;
     end
