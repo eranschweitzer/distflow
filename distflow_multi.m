@@ -286,7 +286,7 @@ for k = 2:length(bus)
 %         end
 %         sd = diag(tmp)*D(:,bus(k).phase).'*tmpsd
         sd = sqrt(3)*diag(D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
-%         sd = (sqrt(3)/1)*abs(B2(bus(k).phase,:))*tmpsd;
+%         sd = diag(gamma_phi(bus(k).phase)*D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
     else
         sd = 0;
     end
