@@ -1,5 +1,28 @@
 function [v, Pf, Qf] = distflow_lossy(mpc, opt)
-
+%%% single phase DistFlow solution
+%%%  [v, Pf, Qf] = distflow_lossy(mpc)
+%%%  [v, Pf, QF] = distflow_lossy(mpc, opt)
+%%%
+%%%  INPUTS:
+%%%         mpc: matpower case. Must be radial, with consecutively numbered
+%%%         branches, and the source node should be bus 1.
+%%%         opt: options structure
+%%%             .alpha: lossless parameter either scalar or
+%%%                     range [alphamin alphamax].
+%%%             .alpha_method: parametrization method (1-7):
+%%%                 1: scalar alpha
+%%%                 2: linear interpolation based on branch impedance
+%%%                 3: quadradic interpolation based on branch impedance
+%%%                 4: linear interpolation based on downstream power
+%%%                 5: quadratic interpolation based on downstream power
+%%%                 6: linear interpolation based on branch impedance TIMES downstream
+%%%                    power
+%%%                 7: quadratic interpolation based on branch impedance TIMES downstream
+%%%                    power
+%%%  OUTPUTS:
+%%%         v: vector of bus voltage magnitudes (per unit)
+%%%         Pf: vector of sending end branch real power flows (MW)
+%%%         Qf: vector of sending end branch reactive flows (MVAr)
 %% input check
 define_constants;
 nb = size(mpc.bus,1);
