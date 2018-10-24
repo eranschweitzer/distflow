@@ -1,6 +1,7 @@
 clear variables;
 close all;
 %%
+saveout = true;
 results = load('alpha_parametrization.mat', 'results');
 results = results.results;
 
@@ -48,3 +49,9 @@ end
 % cmp err is the error using the range from the total results, min err is the minimum error for the 
 % specific feeder size.
 Tcmp = array2table([results.n, results.err(:,1), cmperr], 'VariableNames', {'fz', 'minerr', 'cmperr'})
+
+%% save
+if saveout
+	writetable(Ttot, 'alpha_tuning_total_error_analysis.csv')
+	writetable(Tcmp, 'alpha_tuning_per_size_comparison.csv')
+end
