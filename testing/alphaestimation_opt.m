@@ -10,15 +10,24 @@ function errs = alphaestimation_opt(feeder_sizes, fname, mtds)
 %   7: quadratic interpolation based on branch impedance TIMES downstream
 %      power
 if nargin < 3
-	mtds = 2:8;
+	mtds = 2:7;
 	if (nargin < 2) || isempty(fname)
 		fname = sprintf('alphaest_opt_with_mtds_%dto%d.mat', min(feeder_sizes), max(feeder_sizes));
 	end
 end
 define_constants;
 %feeder_sizes = 10:10:600; % number of nodes for samples
-alpha_range  = 0.4:0.001:0.6;
-[amin, amax] = meshgrid(alpha_range);
+if ismember(8, mtds) && ~isscalar(mtds)
+  error('method 8 works differently than the rest, it cannot be run along with other methods.')
+end
+if ismember(8,mtds)
+  alpha_range = 0:0.001:40;
+  nelem = length(alpha_range);
+else
+  alpha_range  = 0.4:0.001:0.6;
+  [amin, amax] = meshgrid(alpha_range);
+  nelem = numel(amin);
+end
 nsamples = 100;           % number of samples per feeder size
 
 mpopt  = mpoption('out.all',0, 'verbose', 0);
@@ -28,7 +37,7 @@ mpopt2.pf.radial.max_it = 500;
 %% proccess samples
 errs = cell(length(feeder_sizes), 1);
 if isempty(gcp('nocreate'))
-    parpool(min(numel(amin),60));
+    parpool(min(nelem,60));
 end
 for k = 1:length(feeder_sizes)
     fz = feeder_sizes(k);
@@ -66,13 +75,17 @@ for k = 1:length(feeder_sizes)
 				ptrue = r.branch(:,PF);
 				qtrue = r.branch(:,QF);
 %         err = zeros(length(alpha_range), 1);
-        err = zeros(numel(amin), length(mtds));
-        parfor kk = 1:length(err)
+        err = zeros(nelem, length(mtds));
+        parfor kk = 1:nelem
 %         for kk = 1:length(alpha_range)
 						tmperr = zeros(1, length(mtds));
             for midx = 1:length(mtds)
                 mtd = mtds(midx);
-                opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
+                if mtd == 8
+                  opt = struct('alpha', alpha_range(kk), 'alpha_method', mtd);
+                else
+                  opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
+                end
 %                 a = alpha_range(kk);
                 [v, pf, qf] = distflow_lossy(r, opt);
                 tmperr(midx) = (norm(vtrue - v(2:end), 2) +...
