@@ -76,24 +76,30 @@ for k = 1:length(feeder_sizes)
 				qtrue = r.branch(:,QF);
 %         err = zeros(length(alpha_range), 1);
         err = zeros(nelem, length(mtds));
-        parfor kk = 1:nelem
-%         for kk = 1:length(alpha_range)
-						tmperr = zeros(1, length(mtds));
-            for midx = 1:length(mtds)
-                mtd = mtds(midx);
-                if mtd == 8
-                  opt = struct('alpha', alpha_range(kk), 'alpha_method', mtd);
-                else
-                  opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
-                end
-%                 a = alpha_range(kk);
-                [v, pf, qf] = distflow_lossy(r, opt);
-                tmperr(midx) = (norm(vtrue - v(2:end), 2) +...
-                      norm( (ptrue - pf)/r.baseMVA, 2) + ...
-                      norm( (qtrue - qf)/r.baseMVA, 2)) / sqrt(fz-1);
-            end
-						err(kk,:) = tmperr;
-        end
+				if ismember(8, mtds)
+        	parfor kk = 1:nelem
+        		opt = struct('alpha', alpha_range(kk), 'alpha_method', 8);
+        	  [v, pf, qf] = distflow_lossy(r, opt);
+        	  err(kk) = (norm(vtrue - v(2:end), 2) +...
+        	        norm( (ptrue - pf)/r.baseMVA, 2) + ...
+        	        norm( (qtrue - qf)/r.baseMVA, 2)) / sqrt(fz-1);
+					end
+				else
+        	parfor kk = 1:nelem
+%       	  for kk = 1:length(alpha_range)
+							tmperr = zeros(1, length(mtds));
+        	    for midx = 1:length(mtds)
+        	        mtd = mtds(midx);
+       	          opt = struct('alpha', [amin(kk), amax(kk)], 'alpha_method', mtd);
+%       	          a = alpha_range(kk);
+        	        [v, pf, qf] = distflow_lossy(r, opt);
+        	        tmperr(midx) = (norm(vtrue - v(2:end), 2) +...
+        	              norm( (ptrue - pf)/r.baseMVA, 2) + ...
+        	              norm( (qtrue - qf)/r.baseMVA, 2)) / sqrt(fz-1);
+        	    end
+							err(kk,:) = tmperr;
+        	end
+				end
 %         [ev, idx]  = min(err);
 %         tmp{iter} = alpha_range(idx);
         tmp{iter} = err;
