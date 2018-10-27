@@ -1,4 +1,4 @@
-function bus = distflow_multi(bus, branch, opt)
+function [bus, branch] = distflow_multi(bus, branch, opt)
 %%%    bus is an nx1 structure array with fields
 %%%         - vref scalar reference voltage magnitude (p.u.) (source is
 %%%         assumed to be 3 phase balanced)
@@ -90,30 +90,36 @@ switch opt.alpha_method
         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
         Beta  = 2*opt.alpha*conn.I - (1-2*opt.alpha)*Gamma;
-    case 2
-        if length(opt.alpha) ~= 1
-            error('distflow_multi: when using alpha_method 2 the value for alpha must be a scalar.')
-        end
-        alphavect = 0.5*ones(conn.E,1);
-        alphavect(logical(sum(conn.U,1))) = opt.alpha;
-        alphaDiag = sparse(1:conn.E, 1:conn.E, alphavect, conn.E, conn.E);
-        
-        Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
-                kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
-        Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
-    case {3,4,5,6,7,8,9,10}
+%     case 2 DEPRECATED
+%         if length(opt.alpha) ~= 1
+%             error('distflow_multi: when using alpha_method 2 the value for alpha must be a scalar.')
+%         end
+%         alphavect = 0.5*ones(conn.E,1);
+%         alphavect(logical(sum(conn.U,1))) = opt.alpha;
+%         alphaDiag = sparse(1:conn.E, 1:conn.E, alphavect, conn.E, conn.E);
+%         
+%         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
+%                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
+%         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
+    case {3,4,5,6,7,8,9,10,11}
         if length(opt.alpha) ~= 2
-            warning('distflow_multi: when using alpha_method 3-6 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
+          warning('distflow_multi: when using alpha_method 3-6 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
         end
         if ismember(opt.alpha_method, [3,4,7,8])
-            maxx = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
-            minx = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
+          maxx = max(cellfun(@(x) max(abs(diag(x))), {branch.Z}));
+          minx = min(cellfun(@(x) min(abs(diag(x))), {branch.Z}));
         elseif ismember(opt.alpha_method, [5,6,9,10])
-            sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
-            maxx = max(cellfun(@(x) full(max(abs(x))), sdp));
-            minx = min(cellfun(@(x) full(min(abs(x))), sdp));
+          sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
+          maxx = max(cellfun(@(x) full(max(abs(x))), sdp));
+          minx = min(cellfun(@(x) full(min(abs(x))), sdp));
+        elseif opt.alpha_method == 11
+          sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
+          sdp  = cellfun(@(x,y) gamma_phi(y)*diag(x), sdp, ephasing, 'UniformOutput', false); 
+          dSzh2  = cellfun(@(x,y) diag((x*y)'*(x*y)), sdp, {branch.Z}.', 'UniformOutput', false);
+          maxx = max(cellfun(@(x) max(x), dSzh2));
+          minx = min(cellfun(@(x) min(x), dSzh2));
         end
-        if ismember(opt.alpha_method, [3,5,7,9])
+        if ismember(opt.alpha_method, [3,5,7,9,11])
             slope = (opt.alpha(end) - opt.alpha(1))/(minx - maxx);
             intercept = opt.alpha(end) - slope*minx;
         elseif ismember(opt.alpha_method, [4,6,8,10])
@@ -129,14 +135,16 @@ switch opt.alpha_method
         for k = 1:length(branch)
 %             dalpha{k} = eye(length(branch(k).phase)) - 2*diag(opt.alpha(1) + slope*(abs(diag(branch(k).Z)) - maxz));
             switch opt.alpha_method
-                case {3,4}
-                    x = max(abs(diag(branch(k).Z)));
-                case {5,6}
-                    x = max(abs(sdp{k}));
-                case {7,8}
-                    x = abs(diag(branch(k).Z));
-                case {9,10}
-                    x = abs(sdp{k});
+              case {3,4}
+                x = max(abs(diag(branch(k).Z)));
+              case {5,6}
+                x = max(abs(sdp{k}));
+              case {7,8}
+                x = abs(diag(branch(k).Z));
+              case {9,10}
+                x = abs(sdp{k});
+              case {11}
+                x = dSzh2{k};
             end
             if ismember(opt.alpha_method, [4,6,8,10])
                 x = x.^2;
@@ -149,6 +157,12 @@ switch opt.alpha_method
 %                 dalpha{k} = eye(length(branch(k).phase)) - 2*diag(slope*x + intercept);
                 ydalpha{k} = Y{k}*(eye(length(branch(k).phase)) - diag(slope*x + intercept));
                 ycalpha{k} = Yconj{k}*diag(slope*x + intercept);
+            elseif opt.alpha_method == 11
+              atmp = 0.5*(1 - x);
+              atmp(atmp > max(opt.alpha)) = max(opt.alpha);
+              atmp(atmp < min(opt.alpha)) = min(opt.alpha);
+              ydalpha{k} = Y{k}*(eye(length(branch(k).phase)) - diag(atmp));
+              ycalpha{k} = Yconj{k}*diag(atmp);
             end
         end
 %         if ismember(opt.alpha_method, 7:10)
@@ -185,6 +199,14 @@ if (max(abs(imag(v2))) > 1e-8) && ~opt.suppress_warnings
 end
 v = sqrt(real(v2));
 bus = updatebus(bus,v);
+if opt.alpha_method > 1
+  xi  = (kdiag(Yconj, ydalpha, ephasing) - kdiag(ycalpha, Y, ephasing))*conn.M*(nu - v0);
+else
+  xi  = sparse(conn.E,1);
+end
+psi = conn.B*(conn.TE*kdiag('eye','gamma', nphasing(2:end))*sigma +...
+  kdiag(yl, 'eye', nphasing(2:end))*nu + kdiag('eye',{branch.Z},ephasing)*xi);
+branch   = updatebranch(branch, conn.U*psi);
 
 
 %% Utility functions
@@ -433,6 +455,13 @@ ptr = 0;
 for k = 2:length(bus)
     bus(k).vm = v(ptr + (1:length(bus(k).phase)));
     ptr = ptr + length(bus(k).phase);
+end
+
+function branch = updatebranch(branch, S)
+ptr = 0;
+for k = 1:length(branch)
+  branch(k).S = S(ptr + (1:length(branch(k).phase)));
+  ptr = ptr + length(branch(k).phase);
 end
 
 function opt = optdefaults(opt)
