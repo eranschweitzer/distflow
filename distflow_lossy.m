@@ -75,16 +75,19 @@ C    = 2*(Rline*B*Rline + Xline*B*Xline) - (Rline*Rline + Xline*Xline);
 
 %% setup alpha
 mtd = opt.alpha_method;
-if isscalar(opt.alpha)
-    if mtd ~= 1
-        warning('distflow_lossy: scalar alpha (%0.4f) was passed but alpha_method=%d.\n\tScalar alpha only makes sense with method 1. Input method selection ignored.',...
-            opt.alpha, mtd)
+switch mtd
+  case 1 %isscalar(opt.alpha)
+    if ~isscalar(opt.alpha)%mtd ~= 1
+%         warning('distflow_lossy: scalar alpha (%0.4f) was passed but alpha_method=%d.\n\tScalar alpha only makes sense with method 1. Input method selection ignored.',...
+%             opt.alpha, mtd)
+      warning('distflow_lossy: alpha_method 1 selected but a non scalar alpha was passed.\n Using first entry alpha=%0.4f', opt.alpha(1))
+      opt.alpha = opt.alpha(1);
     end
     alpha = opt.alpha*I;
 %     tau  =(Rline*(B - I)*Rline+Xline*(B - I)*Xline)*(Rline*Rline+Xline*Xline)^(-1);
 %     K    = (opt.alpha*I - (1-2*opt.alpha)*tau);
 %     Kinv = K^(-1);
-else
+  case 2:7
 % methods:
 %   2: linear interpolation based on branch impedance
 %   3: quadradic interpolation based on branch impedance
@@ -94,7 +97,6 @@ else
 %      power
 %   7: quadratic interpolation based on branch impedance TIMES downstream
 %      power
-%   8: linear interpolation (power^2)*(r^2+x^2)
     
     switch mtd
         case {2,3}
@@ -103,10 +105,6 @@ else
             v = abs(B*T*(pc + 1i*qc));
         case {6,7}
             v = sqrt(r.^2 + x.^2).*abs(B*T*(pc + 1i*qc));
-				case 8
-            v = (r.^2 + x.^2).*abs(B*T*(pc + 1i*qc)).^2;
-        otherwise
-            error('distflow_lossy: method %d not implemented.', mtd)
     end
     if ismember(mtd, [3,5,7])
         v = v.^2;
@@ -116,6 +114,20 @@ else
     intercept = opt.alpha(2) - slope*vmin;
             
     alpha = sparse(1:nl,1:nl,slope*v + intercept, nl, nl);
+  case 8
+    %   8: alpha = 1/2 -  opt.alpha*(power^2)*(r^2+x^2)
+    if ~isscalar(opt.alpha)%mtd ~= 1
+      warning('distflow_lossy: alpha_method 8 selected but a non scalar alpha was passed.\n Using first entry alpha=%0.4f', opt.alpha(1))
+      opt.alpha = opt.alpha(1);
+    end
+    v = (r.^2 + x.^2).*abs(B*T*(pc + 1i*qc)).^2;
+    atmp = 0.5 - opt.alpha*v;
+    % catch extreme values 
+    atmp(atmp <= 0) = 0.5;
+    atmp(atmp >= 1) = 0.5;
+    alpha = sparse(1:nl,1:nl,atmp, nl, nl);
+  otherwise
+    error('distflow_lossy: method %d not implemented.', mtd)
 end
 beta = I - C*(Rline*Rline+Xline*Xline)^(-1)*(I - 2*alpha);
 %% solution
