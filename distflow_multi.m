@@ -101,7 +101,7 @@ switch opt.alpha_method
 %         Gamma = kdiag(Zconj, 'eye', ephasing)*(conn.B - conn.I)*kdiag(Yconj, 'eye', ephasing) + ...
 %                 kdiag('eye', {branch.Z}, ephasing)*(conn.B - conn.I)*kdiag('eye', Y, ephasing);
 %         Beta = 2*alphaDiag*conn.I - (conn.I - 2*alphaDiag)*Gamma;
-    case {3,4,5,6,7,8,9,10,11}
+    case {3,4,5,6,7,8,9,10,11,12}
         if (length(opt.alpha) ~= 2) && (opt.alpha_method ~= 11) 
           warning('distflow_multi: when using alpha_method 3-6 opt.alpha should contain [alpha_min alpha_max] but a vector of length %d was given.\n', length(opt.alpha))
         end
@@ -115,7 +115,7 @@ switch opt.alpha_method
         elseif opt.alpha_method == 11
           sdp  = vect2cell(conn.U*conn.B*conn.TE*sigma, ephasing);
           sdp  = cellfun(@(x,y) gamma_phi(y)*diag(x), sdp, ephasing, 'UniformOutput', false); 
-          dSzh2  = cellfun(@(x,y) diag((x*y)'*(x*y)), sdp, {branch.Z}.', 'UniformOutput', false);
+          dSzh2  = cellfun(@(x,y) diag((x*y')'*(x*y')), sdp, {branch.Z}.', 'UniformOutput', false);
           tmp  = cellfun(@(x,y) full(sparse(y,1,x,3,1)), dSzh2, ephasing, 'UniformOutput', false);
           maxx = max(cat(2, tmp{:}),[], 2);
           tmpind = (1:3).';
@@ -125,8 +125,17 @@ switch opt.alpha_method
           minx = min(cat(2, tmp{:}),[],2);
 %           maxx = max(cellfun(@(x) max(x), dSzh2));
 %           minx = min(cellfun(@(x) min(x), dSzh2));
+        elseif opt.alpha_method == 12
+          dSzh2  = cellfun(@(x) diag(x*x'), {branch.Z}.', 'UniformOutput', false);
+          tmp  = cellfun(@(x,y) full(sparse(y,1,x,3,1)), dSzh2, ephasing, 'UniformOutput', false);
+          maxx = max(cat(2, tmp{:}),[], 2);
+          tmpind = (1:3).';
+          tmp  = cellfun(@(x,y) ...
+            full(sparse([y;tmpind(~ismember(tmpind,y))],1,...
+                [x;inf(3-length(x),1)],3,1)), dSzh2, ephasing, 'UniformOutput', false);
+          minx = min(cat(2, tmp{:}),[],2);
         end
-        if ismember(opt.alpha_method, [3,5,7,9,11])
+        if ismember(opt.alpha_method, [3,5,7,9,11,12])
             slope = (opt.alpha(end) - opt.alpha(1))./(minx - maxx);
             intercept = opt.alpha(end) - slope.*minx;
         elseif ismember(opt.alpha_method, [4,6,8,10])
@@ -150,7 +159,7 @@ switch opt.alpha_method
                 x = abs(diag(branch(k).Z));
               case {9,10}
                 x = abs(sdp{k});
-              case {11}
+              case {11,12}
                 x = dSzh2{k};
             end
             if ismember(opt.alpha_method, [4,6,8,10])
@@ -164,7 +173,7 @@ switch opt.alpha_method
 %                 dalpha{k} = eye(length(branch(k).phase)) - 2*diag(slope*x + intercept);
                 ydalpha{k} = Y{k}*(eye(length(branch(k).phase)) - diag(slope*x + intercept));
                 ycalpha{k} = Yconj{k}*diag(slope*x + intercept);
-            elseif opt.alpha_method == 11
+            elseif ismember(opt.alpha_method, [11,12])
 %               atmp = 0.5 - opt.alpha*x;
 %               if any(atmp <= 0) || any(atmp >= 1)
 %                 disp(atmp);
