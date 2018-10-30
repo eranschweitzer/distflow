@@ -88,7 +88,7 @@ switch mtd
 %     tau  =(Rline*(B - I)*Rline+Xline*(B - I)*Xline)*(Rline*Rline+Xline*Xline)^(-1);
 %     K    = (opt.alpha*I - (1-2*opt.alpha)*tau);
 %     Kinv = K^(-1);
-  case 2:7
+  case num2cell(2:7)
 % methods:
 %   2: linear interpolation based on branch impedance
 %   3: quadradic interpolation based on branch impedance
