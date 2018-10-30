@@ -19,6 +19,7 @@ function [v, Pf, Qf] = distflow_lossy(mpc, opt)
 %%%                    power
 %%%                 7: quadratic interpolation based on branch impedance TIMES downstream
 %%%                    power
+%%%                 8: alpha = 1/2 -  opt.alpha*(power^2)*(r^2+x^2)
 %%%  OUTPUTS:
 %%%         v: vector of bus voltage magnitudes (per unit)
 %%%         Pf: vector of sending end branch real power flows (MW)
