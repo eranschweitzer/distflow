@@ -13,45 +13,52 @@
 %% load data
 clear variables;
 close all;
-dssres = load('OpenDSSResults.mat');
-load('Bus.mat');
-load('Branch.mat');
-warnstate = warning('off','all');
+fname = {'IEEE_13.mat', 'IEEE_34.mat', 'IEEE_37.mat', 'IEEE_123.mat'};
+
 %% 
 alpha_range = 0.40:0.001:0.6;
 [amin, amax] = meshgrid(alpha_range);
 %% run grid-search
-mtds = 3:10;
-res = cell(numel(amin),2*length(mtds));
+mtds = [11,12];
+err = zeros(numel(amin),length(mtds));
 if isempty(gcp('nocreate'))
     parpool(60)
 end
 parfor k = 1:numel(amin)
-    
-    restmp = cell(1,2*length(mtds));
-    for kk = 1:length(mtds)
-		mtd = mtds(kk);
+    errtmp = zeros(1,length(mtds));
+    for f = 1:length(fname)
+      data = load(fname);
+      vnr   = vertcat(data.Bus.vm);
+      sfnr  = cat(2,data.Branch.S).';
+      for kk = 1:length(mtds)
+        mtd = mtds(kk);
 
-%     	opt = struct('suppress_warnings', 1);
+    %     	opt = struct('suppress_warnings', 1);
         opt = struct();
-    	opt.alpha = [amin(k), amax(k)];
+        opt.alpha = [amin(k), amax(k)];
         opt.alpha_method = mtd;
-        r = distflow_multi(Bus, Branch, opt);
-        restmp{kk} = vertcat(r.vm);
-				
-		opt.bustmpopt = opt;
-		opt.calcmu = 1;
-		opt.alpha = 0.5;
-		opt.alpha_method=1;
-		opt.gamma_method=2;
-        r = distflow_multi(Bus, Branch, opt);
-		restmp{kk + length(mtds)} = vertcat(r.vm);
+        [bnew, lnew] = distflow_multi(data.Bus, data.Branch, opt);
+
+        v  = vertcat(bnew.vm);
+        sf = vertcat(lnew.S);
+        errtmp(kk) = (norm(vnr(4:end) - v(4:end),2) ...
+          + norm(real(sfnr - sf),2) + norm(imag(sfnr - sf),2))/sqrt(length(sf));
+  %       opt.bustmpopt = opt;
+  %       opt.calcmu = 1;
+  %       opt.alpha = 0.5;
+  %       opt.alpha_method=1;
+  %       opt.gamma_method=2;
+  %       r = distflow_multi(Bus, Branch, opt);
+  %       restmp{kk + length(mtds)} = vertcat(r.vm);
+      end
+      err(k,:) = errtmp;
     end
-    res(k,:) = restmp;
 end
 delete(gcp('nocreate'))
-warning(warnstate); %restore warnings
+
+%% save result
+save('multiphase_parametrization_mtds11and12.mat', 'err', 'alpha_range', 'mtds');
 %% calculate error
-err.norm = cellfun(@(x) norm(dssres.x - x), res);
-err.max  = cellfun(@(x) max(abs(dssres.x-x)), res);
-save('./testing/mutliphase_interpolation_results.mat', 'err', 'mtds', 'amin', 'amax')
+% err.norm = cellfun(@(x) norm(dssres.x - x), res);
+% err.max  = cellfun(@(x) max(abs(dssres.x-x)), res);
+% save('./testing/mutliphase_interpolation_results.mat', 'err', 'mtds', 'amin', 'amax')
