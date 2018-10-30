@@ -123,13 +123,13 @@ if sflag
             yyaxis left;
             plot(laterals_s{phi}{l}(:,1),real(laterals_s{phi}{l}(:,3) - laterals_s{phi}{l}(:,2)),'-','Color', cmap(1,:), 'Marker','.', 'MarkerSize', 10);
             yyaxis right;
-            plot(laterals_s{phi}{l}(:,1),imag(laterals_s{phi}{l}(:,3) - laterals_s{phi}{l}(:,2)),'-','Color', cmap(1,:), 'Marker','.', 'MarkerSize', 10);
+            plot(laterals_s{phi}{l}(:,1),imag(laterals_s{phi}{l}(:,3) - laterals_s{phi}{l}(:,2)),'-','Color', cmap(2,:), 'Marker','.', 'MarkerSize', 10);
         else
             if refflagl
-                yaxis left;
+                yyaxis left;
                 plot(laterals_s{phi}{l}(:,1), real(laterals_s{phi}{l}(:,3)),'k--', 'Marker','.', 'MarkerSize', 10);
-                yaxis right;
-                plot(laterals_s{phi}{l}(:,1), imag(laterals_s{phi}{l}(:,3)),'k--', 'Marker','.', 'MarkerSize', 10);
+                yyaxis right;
+                plot(laterals_s{phi}{l}(:,1), imag(laterals_s{phi}{l}(:,3)),'k:', 'Marker','.', 'MarkerSize', 10);
                 hold on;
             end
             yyaxis left;
