@@ -25,9 +25,12 @@ if isempty(gcp('nocreate'))
     parpool(60)
 end
 parfor k = 1:numel(amin)
+		if mod(k,100) == 0
+			fprintf('running index %d\n', k)
+		end
     errtmp = zeros(1,length(mtds));
     for f = 1:length(fname)
-      data = load(fname);
+      data = load(fname{f});
       vnr   = vertcat(data.Bus.vm);
       sfnr  = cat(2,data.Branch.S).';
       for kk = 1:length(mtds)
@@ -51,7 +54,7 @@ parfor k = 1:numel(amin)
   %       r = distflow_multi(Bus, Branch, opt);
   %       restmp{kk + length(mtds)} = vertcat(r.vm);
       end
-      err(k,:) = errtmp;
+      err(k,:) = err(k,:) + errtmp;
     end
 end
 delete(gcp('nocreate'))
