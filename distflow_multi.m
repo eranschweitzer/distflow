@@ -1,18 +1,46 @@
 function [bus, branch] = distflow_multi(bus, branch, opt)
-%%%    bus is an nx1 structure array with fields
-%%%         - vref scalar reference voltage magnitude (p.u.) (source is
-%%%         assumed to be 3 phase balanced)
-%%%         - phase which a vector containing phases on bus.
-%%%         - sy phi x 1 vector of per unit Y connected constant power load
-%%%         (complex).
-%%%         - yd 3x1 vector of delta connected constant admittance load
-%%%         order is [ab, bc, ca]
 %%%
-%%%    branch is a n-1x1 structre array with fields
-%%%         - R phase x phase matrix of branch resistance
-%%%         - X phase x phase matrix of branch reactance
-%%%         - phase a vector containing the phases of the branch.
+%%%		[bus, branch] = distflow_multi(bus, branch, opt)
+%%%		
+%%%		bus is an nx1 structure array with fields
+%%%			- vref scalar reference voltage magnitude (p.u.) (source is
+%%%				assumed to be 3 phase balanced)
+%%%			- phase  a vector containing phases on bus. e.g [1,2] if only phases 1 and 2 are present.
+%%%			- sy phase x 1 vector of per unit Y connected constant power load (complex).
+%%%			- sd 3x1 vector of delta connected constant power load. (if none can also be a scalar 0).
+%%%			- yy phasex1 vector of of Wye connected constant admittance load.
+%%%			- yd 3x1 vector of delta connected constant admittance load
+%%%			 	order is [ab, bc, ca].
+%%%			- Ysh phase x phase vector of Shunt admittance at bus (for example, 1/2 of branch capacitance).
+%%%		
+%%%		branch is a n-1x1 structre array with fields
+%%%			- f  node id of from node
+%%%			- t  node id of to node
+%%%			- phase a vector containing the phases of the branch.
+%%%			- Z phase x phase matrix of branch impedance (complex).
+%%%		
+%%%		opt (optiona) options structure with fields:
+%%%			- alpha_method loss parametrization method
+%%%					 method #    Description
+%%%					 --------    -----------
+%%%							1				 scalar constant alpha (use this with alpha=0.5 for lossless approximation, default)
+%%%					    2        DEPRECATED
+%%%					    3        Not Recommended: alpha interpolated linearly based on branch impedance magnitude
+%%%					    4        Not Recommended: alpha interpolated quadratically based on branch impedance magnitude
+%%%					    5        Not Recommended: alpha interpolated linearly based on branch downstream mva magnitude
+%%%					    6        Not Recommended: alpha interpolated quadratically based on branch downstream mva magnitude
+%%%					    7        Not Recommended: alpha (per phase) interpolated linearly based on branch impedance
+%%%					    8        Not Recommended: alpha (per phase) interpolated quadratically based on branch impedance
+%%%					    9        Not Recommended: alpha (per phase) interpolated linearly based on branch downstream mva magnitude
+%%%					   10        Not Recommended: alpha (per phase) interpolated quadratically based on branch downstream mva magnitude
+%%%						 11        alpha = Diag(m)*(S*z^H)^H(S*z^H) + b
+%%%						 12        alpha = Diag(m)*(z*z^H) + b
+%%%			- alpha if alpha_method=1 scalar value
+%%%							else [alpha_min, alpha_max] the range into which the parameter should be mapped.
 %%%
+%%% OUPTUT
+%%% 	bus.vm 		phase x 1 vector of voltage magnitude
+%%%   branch.S	phase x 1 vector of branch apparent power flow (complex)
 
 a = exp(-1i*2*pi/3);
 avect = [1; a; a^2];
