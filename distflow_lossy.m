@@ -2,6 +2,7 @@ function [v, Pf, Qf] = distflow_lossy(mpc, opt)
 %%% single phase DistFlow solution
 %%%  [v, Pf, Qf] = distflow_lossy(mpc)
 %%%  [v, Pf, QF] = distflow_lossy(mpc, opt)
+%%%      result  = distflow_lossy(mpc, opt)
 %%%
 %%%  INPUTS:
 %%%         mpc: matpower case. Must be radial, with consecutively numbered
@@ -21,9 +22,13 @@ function [v, Pf, Qf] = distflow_lossy(mpc, opt)
 %%%                    power
 %%%                 8: alpha = 1/2 -  opt.alpha*(power^2)*(r^2+x^2)
 %%%  OUTPUTS:
-%%%         v: vector of bus voltage magnitudes (per unit)
+%%%          v: vector of bus voltage magnitudes (per unit)
 %%%         Pf: vector of sending end branch real power flows (MW)
 %%%         Qf: vector of sending end branch reactive flows (MVAr)
+%%%     result: Copy of mpc with,
+%%%                     result.bus(:, VM)    = v
+%%%                     result.branch(:, PF) = Pf
+%%%                     result.branch(:, QF) = Qf
 %% input check
 define_constants;
 nb = size(mpc.bus,1);
@@ -141,6 +146,13 @@ c  = (Rline*Rline+Xline*Xline)^(-1)*(I - 2*alpha)*M0*v;
 v = sqrt(v);
 Pf = mpc.baseMVA*B*(T*pc + Rline*c);
 Qf = mpc.baseMVA*B*(T*qc + Xline*c);
+if nargout == 1
+  result = mpc;
+  result.bus(:,VM) = v;
+  result.branch(:,PF) = Pf;
+  result.branch(:,QF) = Qf;
+  v = result;
+end
 
 
 function opt = optdefaults(opt)
