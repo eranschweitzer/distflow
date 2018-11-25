@@ -1,10 +1,10 @@
-if false
+
 clear variables;
 close all;
 %%
-savenamebase = 'alpha_validation_mtd8and7';
-alpha =  {[0.4830, 0.4990], 6.524};
-alpha_method = {7, 8};
+savenamebase = 'alpha_validation_mtd7_Fatemi_Zhigang';
+alpha =  {[0.4830, 0.4990]};%, 6.524};
+alpha_method = {7};
 %%
 define_constants;
 nsamples = 5000;
@@ -26,7 +26,8 @@ maxlossy   = cellfun(@(x) zvect, cell(1,nmtds), 'UniformOutput', false);
 avglossy   = cellfun(@(x) zvect, cell(1,nmtds), 'UniformOutput', false); 
 stdlossy   = cellfun(@(x) zvect, cell(1,nmtds), 'UniformOutput', false);
 norm2lossless = zvect; maxlossless = zvect; avglossless = zvect; stdlossless = zvect;
-
+norm2fatemi   = zvect; maxfatemi   = zvect; avgfatemi   = zvect; stdfatemi   = zvect;
+norm2zhigang  = zvect; maxzhigang  = zvect; avgzhigang  = zvect; stdzhigang  = zvect;
 %%
 %parforstatus(nsamples, 0.1, 1);
 %if isempty(gcp('nocreate'))
@@ -107,29 +108,71 @@ for k = 1:nsamples
   	
   	% std error
   	stdlossy{mtd}(k,:)      = [std(abs(tmp.lossy.v)), std(abs(tmp.lossy.p)), std(abs(tmp.lossy.q))];
-	end
+  end
+  
+  %% Fatemi method
+  vars = FatemiPF(r);
+  %------ errros
+  tmp = struct();
+  tmp.fatemi.v = v - vars.v;
+  tmp.fatemi.p = pf/r.baseMVA - vars.pf;
+  tmp.fatemi.q = qf/r.baseMVA - vars.qf;
+
+  % 2 norm 
+  norm2fatemi(k,:) = [norm(tmp.fatemi.v,2), norm(tmp.fatemi.p,2), norm(tmp.fatemi.q,2)]/sqrt(fz - 1);
+  
+  % max error
+  maxfatemi(k,:)   = [max(abs(tmp.fatemi.v)), max(abs(tmp.fatemi.p)), max(abs(tmp.fatemi.q))];
+  
+  % avg error
+  avgfatemi(k,:)   = [mean(abs(tmp.fatemi.v)), mean(abs(tmp.fatemi.p)), mean(abs(tmp.fatemi.q))];
+  
+  % std error
+  stdfatemi(k,:)   = [std(abs(tmp.fatemi.v)), std(abs(tmp.fatemi.p)), std(abs(tmp.fatemi.q))];
+  
+  %% zhigang
+  vars = SLPF(r);
+  %------ errros
+  tmp = struct();
+  tmp.zhigang.v = v - vars.v;
+  tmp.zhigang.p = pf/r.baseMVA - vars.p.f;
+  tmp.zhigang.q = qf/r.baseMVA - vars.q.f;
+  
+  % 2 norm 
+  norm2zhigang(k,:) = [norm(tmp.zhigang.v,2), norm(tmp.zhigang.p,2), norm(tmp.zhigang.q,2)]/sqrt(fz - 1);
+  
+  % max error
+  maxzhigang(k,:)   = [max(abs(tmp.zhigang.v)), max(abs(tmp.zhigang.p)), max(abs(tmp.zhigang.q))];
+  
+  % avg error
+  avgzhigang(k,:)   = [mean(abs(tmp.zhigang.v)), mean(abs(tmp.zhigang.p)), mean(abs(tmp.zhigang.q))];
+  
+  % std error
+  stdzhigang(k,:)   = [std(abs(tmp.zhigang.v)), std(abs(tmp.zhigang.p)), std(abs(tmp.zhigang.q))];
 end
 %delete(gcp('nocreate'))
 
 %% place results in a structure
 err = struct('fz', fzvect,...
-      'lossless', struct('norm2', norm2lossless, 'max', maxlossless, 'avg', avglossless, 'std', stdlossless));
+      'lossless', struct('norm2', norm2lossless, 'max', maxlossless, 'avg', avglossless, 'std', stdlossless),...
+      'fatemi', struct('norm2', norm2fatemi, 'max', maxfatemi, 'avg', avgfatemi, 'std', stdfatemi),...
+      'zhigang',struct('norm2', norm2zhigang, 'max', maxzhigang, 'avg', avgzhigang, 'std', stdzhigang));
 for mtd = 1:nmtds
 	err.(['lossy_mtd' num2str(alpha_method{mtd})]) =  struct('norm2', norm2lossy{mtd}, 'max', maxlossy{mtd}, 'avg', avglossy{mtd}, 'std', stdlossy{mtd});
 end
-
 %% filter result and save
 mask = err.fz ~= 0;
 err.fz = err.fz(mask);
 for field = {'norm2', 'max', 'avg', 'std'}
   err.lossless.(field{:}) = err.lossless.(field{:})(mask,:);
+  err.fatemi.(field{:})   = err.fatemi.(field{:})(mask,:);
+  err.zhigang.(field{:})  = err.zhigang.(field{:})(mask,:);
 	for mtd = 1:nmtds
 		mtdname = ['lossy_mtd' num2str(alpha_method{mtd})];
   	err.(mtdname).(field{:}) = err.(mtdname).(field{:})(mask,:);
 	end
 end
-end
-%%
+
 fprintf('\n\nSaving error results.\n')
 distflowopt = struct('alpha', alpha, 'alpha_method', alpha_method);
 save([savenamebase '.mat'], 'err', 'distflowopt')
@@ -140,19 +183,24 @@ histout = struct();
 f = {'v', 'P', 'Q'};
 for t = {'max', 'norm2'}
 	maxv = max(err.lossless.(t{:}), [], 1);
+  for mtdname = {'fatemi', 'zhigang'}
+    maxv = max(maxv, max(err.(mtdname{:}).(t{:}), [], 1));
+  end
 	for mtd = 1:nmtds
 		mtdname = ['lossy_mtd' num2str(alpha_method{mtd})];
 		maxv = max(maxv, max(err.(mtdname).(t{:}), [], 1));
 	end
 	for k = 1:3
-		dfstr = ['lossless_', t{:}, f{k}];
-		if strcmp(t{:}, 'norm2') || strcmp(f{k}, 'v')
-			dx = 0.01;
-		else
-			dx = 0.05;
-		end
-		edges = 0:dx:maxv(k)+dx;
-		histout.(dfstr) = ensure_col_vect(histcounts(err.lossless.(t{:})(:,k), edges));
+    for mtdname = {'lossless', 'fatemi', 'zhigang'}
+      dfstr = [mtdname{:}, '_', t{:}, f{k}];
+      if strcmp(t{:}, 'norm2') || strcmp(f{k}, 'v')
+        dx = 0.01;
+      else
+        dx = 0.05;
+      end
+      edges = 0:dx:maxv(k)+dx;
+      histout.(dfstr) = ensure_col_vect(histcounts(err.(mtdname{:}).(t{:})(:,k), edges));
+    end
 		for mtd = 1:nmtds
 			mtdname = ['lossy_mtd' num2str(alpha_method{mtd})];
 			ldfstr = [mtdname '_' t{:}, f{k}];
@@ -167,6 +215,9 @@ save([savenamebase '_histograms.mat'], 'histout');
 fprintf('Calculating summary statistics.\n')
 summary_stats = struct('lossless', ...
 	[mean(err.lossless.norm2, 1); mean(err.lossless.max, 1); max(err.lossless.max,[],1)]);
+for mtdname = {'fatemi', 'zhigang'}
+  summary_stats.(mtdname{:}) = [mean(err.(mtdname).norm2, 1); mean(err.(mtdname).max, 1); max(err.(mtdname).max,[],1)];
+end
 for mtd = 1:nmtds
 	mtdname = ['lossy_mtd' num2str(alpha_method{mtd})];
 	summary_stats.(mtdname) = [mean(err.(mtdname).norm2, 1); mean(err.(mtdname).max, 1); max(err.(mtdname).max,[],1)];
