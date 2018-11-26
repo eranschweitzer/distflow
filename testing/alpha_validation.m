@@ -2,7 +2,7 @@
 clear variables;
 close all;
 %%
-savenamebase = 'alpha_validation_mtd7_Fatemi_Zhigang';
+savenamebase = 'alpha_validation_mtd7_Fatemi_Zhigang_2';
 alpha =  {[0.4830, 0.4990]};%, 6.524};
 alpha_method = {7};
 %%
@@ -33,6 +33,7 @@ norm2zhigang  = zvect; maxzhigang  = zvect; avgzhigang  = zvect; stdzhigang  = z
 %if isempty(gcp('nocreate'))
 %    parpool(60);
 %end
+fprintf('Starting test:\n')
 for k = 1:nsamples
   [n,e] = single_feeder_gen();
   fz    = length(n.id);
@@ -216,7 +217,7 @@ fprintf('Calculating summary statistics.\n')
 summary_stats = struct('lossless', ...
 	[mean(err.lossless.norm2, 1); mean(err.lossless.max, 1); max(err.lossless.max,[],1)]);
 for mtdname = {'fatemi', 'zhigang'}
-  summary_stats.(mtdname{:}) = [mean(err.(mtdname).norm2, 1); mean(err.(mtdname).max, 1); max(err.(mtdname).max,[],1)];
+  summary_stats.(mtdname{:}) = [mean(err.(mtdname{:}).norm2, 1); mean(err.(mtdname{:}).max, 1); max(err.(mtdname{:}).max,[],1)];
 end
 for mtd = 1:nmtds
 	mtdname = ['lossy_mtd' num2str(alpha_method{mtd})];
