@@ -35,3 +35,28 @@ Some example data structures are available:
  - `IEEE_34.mat`
  - `IEEE_37.mat`
  - `IEEE_123.mat`
+
+## Multiphase Matrices For Multiple Solutions
+It is also possible to export the system matrices from the `disflow_lossy` function.
+With the help of the `getsigma` function, multiple loadflows for various loading scenarios can be calculated with less redundancy.
+To do this, the `mats_gen` field of the options structure needs to be set to 1 (`opt.mats_gen=1`), and 5 output arguments specified.
+As an example:
+```
+opt = struct(`alpha_method', 12, 'alpha', [0.498, 0.5], 'mats_gen', 1);
+[Beta, K, zeta, eta, conn] = distflow_multi(bus, branch,opt);
+```
+The constant power load vector can be generated as:
+```
+sigma = getsigma(bus);
+```
+And the voltage solution is:
+```
+nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
+v  = sqrt(real(conn.U*nu));
+```
+### A Few Notes On This Usage
+ - The matrix `Beta*conn.M - K` can be factored in advance, in which case for new `sigma` vectors, this becomes a simple matrix multiplication.
+ - This method should generally be used with `opt.alpha_method=12` or `opt.alpha_method=1` as in both cases load is not included in the other matrices.
+Otherwise, much of the benefit is lost.
+ - If any constant impedance loads change, the `K` matrix is impacted. If this happens very frequenly, again some of the benefits may be lost.
+For occasional changes however, the `updateKmat` function is available, which profides the new matrix by calling `K = updateKmat(bus, branch, conn)`
