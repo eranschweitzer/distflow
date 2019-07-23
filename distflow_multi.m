@@ -1,6 +1,7 @@
-function [bus, branch] = distflow_multi(bus, branch, opt)
+function varargout = distflow_multi(bus, branch, opt)
 %%%
 %%%		[bus, branch] = distflow_multi(bus, branch, opt)
+%%%   [Beta, K, zeta, eta, conn] = distflow_multi(bus, branch, opt)
 %%%		
 %%%		bus is an nx1 structure array with fields
 %%%			- vref scalar reference voltage magnitude (p.u.) (source is
@@ -37,10 +38,17 @@ function [bus, branch] = distflow_multi(bus, branch, opt)
 %%%						 12        alpha = Diag(m)*(z*z^H) + b
 %%%			- alpha if alpha_method=1 scalar value
 %%%							else [alpha_min, alpha_max] the range into which the parameter should be mapped.
+%%%			- mats_gen bool
+%%%                     false (default) The distflow is performed and updated bus and branch structures returned
+%%%                     true  matrices returned so that the solution can be solved independently/repeatedly outside the function:
+%%%                                       nu = (Beta*conn.M - K)\(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
+%%%                                       v  = sqrt(real(conn.U*nu));
+%%%                           NOTE: this is really only intended to be used with alpha_method=12 or 1
 %%%
 %%% OUPTUT
 %%% 	bus.vm 		phase x 1 vector of voltage magnitude
 %%%   branch.S	phase x 1 vector of branch apparent power flow (complex)
+
 
 a = exp(-1i*2*pi/3);
 avect = [1; a; a^2];
@@ -75,6 +83,12 @@ if nargin == 0
 else
     ephasing = {branch.phase}.';
     nphasing = {bus.phase}.';
+end
+
+if ~opt.mats_gen && (nargout~=2)
+	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=0 must be 2')
+elseif opt.mats_gen && (nargout~=5)
+	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=1 must be 5')
 end
 
 %% form matrices
@@ -233,7 +247,18 @@ switch opt.alpha_method
 end
 
 
-
+if opt.mats_gen
+	if (opt.alpha_method ~=1) && (opt.alpha_method ~=12)
+		warning(['distflow_multi: option opt.mats_gen=1 is intended to be used only with',...
+		         'opt.alpha_method=1 or opt.alpha_method=12, but input is opt.alpha_method=%d.'], opt.alpha_method)
+	end
+	varargout{1} = Beta;
+	varargout{2} = K;
+	varargout{3} = zeta;
+	varargout{4} = eta;
+	varargout{5} = conn;
+	return
+end
 %% solve
 if opt.calcmu
     if ~exist('bustmp','var')
@@ -250,7 +275,7 @@ if (max(abs(imag(v2))) > 1e-8) && ~opt.suppress_warnings
              'Max imaginary magnitude is %0.4g.\n\t These are discarded in the result'], max(abs(imag(v2))))
 end
 v = sqrt(real(v2));
-bus = updatebus(bus,v);
+varargout{1} = updatebus(bus,v);
 if opt.alpha_method > 1
   xi  = (kdiag(Yconj, ydalpha, ephasing) - kdiag(ycalpha, Y, ephasing))*conn.M*(nu - v0);
 else
@@ -258,8 +283,7 @@ else
 end
 psi = conn.B*(conn.TE*kdiag('eye','gamma', nphasing(2:end))*sigma +...
   kdiag(yl, 'eye', nphasing(2:end))*nu + kdiag('eye',{branch.Z},ephasing)*xi);
-branch   = updatebranch(branch, conn.U*psi);
-
+varargout{2}   = updatebranch(branch, conn.U*psi);
 
 %% Utility functions
 function S = connmats(bus, branch)
@@ -301,88 +325,88 @@ S.B = inv(S.I - S.T*S.F');
 
 S.U = unvecd(nphasing(2:end));
 
-function [yl, ylc] = yload(bus)
-D = [1 -1 0; 0 1 -1; -1 0 1];
-ydflag = isfield(bus,'yd');
-yshflag = isfield(bus,'Ysh');
-yyflag  = isfield(bus,'yy');
-yl = cell(length(bus)-1, 1);
-for k = 2:length(bus)
-    %%% delta portion
-    if ~ydflag
-        yd = 0;
-    elseif (length(bus(k).phase) < 2)
-        if any(bus(k).yd ~= 0)
-            warning('distflow_multi: Ignoring delta load on single phase bus.')
-        end
-        yd = 0;
-    else
-        yd = D(:,bus(k).phase)'*diag(conj(bus(k).yd))*D(:,bus(k).phase);
-    end
-    %%% shunt portion
-    if ~yshflag
-        ysh = 0;
-    else
-        ysh = bus(k).Ysh';
-    end
-    %% constant impedance laod
-    if ~yyflag
-        yy = 0;
-    else
-        yy = diag(bus(k).yy)';
-    end
-    yl{k-1} = (ysh + yy + yd).'; %note only transpose, NOT hermitian.
-end
-ylc = cellfun(@conj, yl, 'UniformOutput', false);
-
-function sigma = getsigma(bus)
-
-D = [1 -1 0; 0 1 -1; -1 0 1];
-% D = eye(3);
-% A = 0.5*[1 -1 1; 1 1 -1; -1 1 1];
-% B = [0 1 1; 1 0 1; 1 1 0];
-% tmp = exp(1i*pi/6);
-% B2 = [conj(tmp) 0 tmp; tmp conj(tmp) 0; 0 tmp conj(tmp)]; 
-idx  = {1, [1,4].', [1,5,9].'};
-sdflag = isfield(bus, 'sd');
-ridx = cell(length(bus)-1,1);
-vidx = cell(length(bus)-1,1);
-ptr = 0;
-for k = 2:length(bus)
-    if sdflag && ~all(bus(k).sd == 0)
-        tmpsd = ensure_col_vect(bus(k).sd);
-%         switch sum(tmpsd ~=0 )
-%             case  3
-%                 ztmp  = 1./conj(tmpsd);
-%                 tmp   = ztmp./(A*(ztmp.*(B*ztmp))/sum(ztmp));
-%             otherwise
-%                 tmp = 3;
+% function [yl, ylc] = yload(bus)
+% D = [1 -1 0; 0 1 -1; -1 0 1];
+% ydflag = isfield(bus,'yd');
+% yshflag = isfield(bus,'Ysh');
+% yyflag  = isfield(bus,'yy');
+% yl = cell(length(bus)-1, 1);
+% for k = 2:length(bus)
+%     %%% delta portion
+%     if ~ydflag
+%         yd = 0;
+%     elseif (length(bus(k).phase) < 2)
+%         if any(bus(k).yd ~= 0)
+%             warning('distflow_multi: Ignoring delta load on single phase bus.')
 %         end
-%         sd = diag(tmp)*D(:,bus(k).phase).'*tmpsd
-        sd = sqrt(3)*diag(D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
-%         sd = diag(gamma_phi(bus(k).phase)*D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
-    else
-        sd = 0;
-    end
-        
-    if any(bus(k).sy ~= 0) || any(sd~=0)
-        vidx{k} = ensure_col_vect(bus(k).sy) + sd;
-        ridx{k} = ptr + idx{length(bus(k).phase)};
-        if length(vidx{k}) ~= length(ridx{k})
-            error('distflow_multi: inconsistent sizes on bus %d between phase (%d x 1) and sy (%d x 1)', ...
-                k, length(bus(k).phase), length(bus(k).sy))
-        end
-    end
-    ptr = ptr + length(bus(k).phase)^2;
-end
-sigma = sparse(cell2mat(ridx), 1, cell2mat(vidx), ptr, 1);
+%         yd = 0;
+%     else
+%         yd = D(:,bus(k).phase)'*diag(conj(bus(k).yd))*D(:,bus(k).phase);
+%     end
+%     %%% shunt portion
+%     if ~yshflag
+%         ysh = 0;
+%     else
+%         ysh = bus(k).Ysh';
+%     end
+%     %% constant impedance laod
+%     if ~yyflag
+%         yy = 0;
+%     else
+%         yy = diag(bus(k).yy)';
+%     end
+%     yl{k-1} = (ysh + yy + yd).'; %note only transpose, NOT hermitian.
+% end
+% ylc = cellfun(@conj, yl, 'UniformOutput', false);
 
-function g = gamma_phi(phases)
-a = exp(-1i*2*pi/3);
-gamma = [1  , a^2, a  ;
-         a  , 1  , a^2;
-         a^2, a  , 1];
-g = gamma(phases,phases);
+% function sigma = getsigma(bus)
+% 
+% D = [1 -1 0; 0 1 -1; -1 0 1];
+% % D = eye(3);
+% % A = 0.5*[1 -1 1; 1 1 -1; -1 1 1];
+% % B = [0 1 1; 1 0 1; 1 1 0];
+% % tmp = exp(1i*pi/6);
+% % B2 = [conj(tmp) 0 tmp; tmp conj(tmp) 0; 0 tmp conj(tmp)]; 
+% idx  = {1, [1,4].', [1,5,9].'};
+% sdflag = isfield(bus, 'sd');
+% ridx = cell(length(bus)-1,1);
+% vidx = cell(length(bus)-1,1);
+% ptr = 0;
+% for k = 2:length(bus)
+%     if sdflag && ~all(bus(k).sd == 0)
+%         tmpsd = ensure_col_vect(bus(k).sd);
+% %         switch sum(tmpsd ~=0 )
+% %             case  3
+% %                 ztmp  = 1./conj(tmpsd);
+% %                 tmp   = ztmp./(A*(ztmp.*(B*ztmp))/sum(ztmp));
+% %             otherwise
+% %                 tmp = 3;
+% %         end
+% %         sd = diag(tmp)*D(:,bus(k).phase).'*tmpsd
+%         sd = sqrt(3)*diag(D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
+% %         sd = diag(gamma_phi(bus(k).phase)*D(:,bus(k).phase).'*diag(tmpsd)*D(:,bus(k).phase));
+%     else
+%         sd = 0;
+%     end
+%         
+%     if any(bus(k).sy ~= 0) || any(sd~=0)
+%         vidx{k} = ensure_col_vect(bus(k).sy) + sd;
+%         ridx{k} = ptr + idx{length(bus(k).phase)};
+%         if length(vidx{k}) ~= length(ridx{k})
+%             error('distflow_multi: inconsistent sizes on bus %d between phase (%d x 1) and sy (%d x 1)', ...
+%                 k, length(bus(k).phase), length(bus(k).sy))
+%         end
+%     end
+%     ptr = ptr + length(bus(k).phase)^2;
+% end
+% sigma = sparse(cell2mat(ridx), 1, cell2mat(vidx), ptr, 1);
+
+% function g = gamma_phi(phases)
+% a = exp(-1i*2*pi/3);
+% gamma = [1  , a^2, a  ;
+%          a  , 1  , a^2;
+%          a^2, a  , 1];
+% g = gamma(phases,phases);
 
 % function [g, gc] = branchgamma(conn, sigma, Zconj, ephasing)
 % 
@@ -420,52 +444,52 @@ v0   = I0*vref;
 % Iphi0 = speye(length(vref));
 % x = cell2mat(cellfun(@(y) Iphi0(vec(idx(y,y)),:), phasing))*vref;
 
-function A = kdiag(x,y, phases)
-%%% x and y should be cells with matrix entries, 'eye', or 'gamma', 'gamma_conj'
-
-n  = length(phases);
-ridx = cell(n,1);
-cidx = cell(n,1);
-vidx = cell(n,1);
-ptr  = 0;
-for k = 1:n
-    try
-        xtmp = kdiag_tmpmat(x{k}, phases{k});
-    catch ME
-        if strcmp(ME.identifier, 'MATLAB:cellRefFromNonCell')
-            xtmp = kdiag_tmpmat(x, phases{k});
-        else
-            rethrow(ME)
-        end
-    end
-    try
-        ytmp = kdiag_tmpmat(y{k}, phases{k});
-    catch ME
-        if strcmp(ME.identifier, 'MATLAB:cellRefFromNonCell')
-            ytmp = kdiag_tmpmat(y, phases{k});
-        else
-            rethrow(ME)
-        end
-    end
-    [rtmp,ctmp,vtmp] = find(kron(xtmp, ytmp));
-	ridx{k} = ptr + rtmp;
-	cidx{k} = ptr + ctmp;
-	vidx{k} = vtmp;
-
-	ptr = ptr + length(phases{k})^2;
-end
-A = sparse(cell2mat(ridx), cell2mat(cidx), cell2mat(vidx), ptr, ptr);
-
-function xtmp = kdiag_tmpmat(x, phi)
-if strcmp(x, 'eye')
-    xtmp = eye(length(phi));
-elseif strcmp(x, 'gamma')
-    xtmp = gamma_phi(phi);
-elseif strcmp(x, 'gammac')
-    xtmp = conj(gamma_phi(phi));
-else
-    xtmp = x;
-end
+% function A = kdiag(x,y, phases)
+% %%% x and y should be cells with matrix entries, 'eye', or 'gamma', 'gamma_conj'
+% 
+% n  = length(phases);
+% ridx = cell(n,1);
+% cidx = cell(n,1);
+% vidx = cell(n,1);
+% ptr  = 0;
+% for k = 1:n
+%     try
+%         xtmp = kdiag_tmpmat(x{k}, phases{k});
+%     catch ME
+%         if strcmp(ME.identifier, 'MATLAB:cellRefFromNonCell')
+%             xtmp = kdiag_tmpmat(x, phases{k});
+%         else
+%             rethrow(ME)
+%         end
+%     end
+%     try
+%         ytmp = kdiag_tmpmat(y{k}, phases{k});
+%     catch ME
+%         if strcmp(ME.identifier, 'MATLAB:cellRefFromNonCell')
+%             ytmp = kdiag_tmpmat(y, phases{k});
+%         else
+%             rethrow(ME)
+%         end
+%     end
+%     [rtmp,ctmp,vtmp] = find(kron(xtmp, ytmp));
+% 	ridx{k} = ptr + rtmp;
+% 	cidx{k} = ptr + ctmp;
+% 	vidx{k} = vtmp;
+% 
+% 	ptr = ptr + length(phases{k})^2;
+% end
+% A = sparse(cell2mat(ridx), cell2mat(cidx), cell2mat(vidx), ptr, ptr);
+% 
+% function xtmp = kdiag_tmpmat(x, phi)
+% if strcmp(x, 'eye')
+%     xtmp = eye(length(phi));
+% elseif strcmp(x, 'gamma')
+%     xtmp = gamma_phi(phi);
+% elseif strcmp(x, 'gammac')
+%     xtmp = conj(gamma_phi(phi));
+% else
+%     xtmp = x;
+% end
 
 function U = unvecd(phasing)
 %%% for each block select the diagonal entries of the reshaped square
@@ -517,7 +541,7 @@ for k = 1:length(branch)
 end
 
 function opt = optdefaults(opt)
-optd = struct('alpha', 0.5, 'alpha_method', 1, 'gamma_method', 1, 'calcmu', 0, 'bustmpopt', [], 'suppress_warnings', 0);
+optd = struct('alpha', 0.5, 'alpha_method', 1, 'mats_gen', 0, 'gamma_method', 1, 'calcmu', 0, 'bustmpopt', [], 'suppress_warnings', 0);
 if isempty(opt)
     opt = optd;
 else
