@@ -1,9 +1,9 @@
 function v0 = v0update(bus, branch)
 %%%
-%%%			v0 = u0update
-%%% phasing is a n-1 x 1 cell array where each entry contains a vector with 
-%%% the phasing of the given branch. For example, if branch 7 (that one whose
-%%% `to` node is 8) has phases A and B then: `phasing{7} = [1,2]`
+%%%			v0 = u0update(bus, branch)
+%%% 
+%%% Outputs the v0 vector for the multiphase distflow formulation
+%%% for bus and branch see distflow_multi
 
 ephasing = {branch.phase}.';
 a = exp(-1i*2*pi/3);
