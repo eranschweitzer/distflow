@@ -39,11 +39,11 @@ Some example data structures are available:
 ## Multiphase Matrices For Multiple Solutions
 It is also possible to export the system matrices from the `disflow_lossy` function.
 With the help of the `getsigma` function, multiple loadflows for various loading scenarios can be calculated with less redundancy.
-To do this, the `mats_gen` field of the options structure needs to be set to 1 (`opt.mats_gen=1`), and 5 output arguments specified.
+To do this, the `mats_gen` field of the options structure needs to be set to 1 (`opt.mats_gen=1`), and 6 output arguments specified.
 As an example:
 ```
-opt = struct(`alpha_method', 12, 'alpha', [0.498, 0.5], 'mats_gen', 1);
-[Beta, K, zeta, eta, conn] = distflow_multi(bus, branch,opt);
+opt = struct('alpha_method', 12, 'alpha', [0.498, 0.5], 'mats_gen', 1);
+[Beta, K, zeta, eta, v0, conn] = distflow_multi(bus, branch,opt);
 ```
 The constant power load vector can be generated as:
 ```
@@ -56,6 +56,14 @@ v  = sqrt(real(conn.U*nu));
 ```
 ### A Few Notes On This Usage
  - The matrix `Beta*conn.M - K` can be factored in advance, in which case for new `sigma` vectors, this becomes a simple matrix multiplication.
+As an example:
+```
+[L,U] = lu(Beta*conn.M - K);
+Linv = inv(L); %alternatively Linv = L\speye(size(L,1));
+Uinv = inv(U); %alternatively Uinv = U\speye(size(U,1));
+nu = Uinv*Linv*(Beta*conn.M*v0 + zeta*sigma + eta*conj(sigma));
+```
+Depending on the size of the matrices and sparsity patterns this version may be faster, or the original one with the backslash operator.
  - This method should generally be used with `opt.alpha_method=12` or `opt.alpha_method=1` as in both cases load is not included in the other matrices.
 Otherwise, much of the benefit is lost.
  - If any constant impedance loads change, the `K` matrix is impacted. If this happens very frequenly, again some of the benefits may be lost.
