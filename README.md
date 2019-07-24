@@ -68,3 +68,4 @@ Depending on the size of the matrices and sparsity patterns this version may be 
 Otherwise, much of the benefit is lost.
  - If any constant impedance loads change, the `K` matrix is impacted. If this happens very frequenly, again some of the benefits may be lost.
 For occasional changes however, the `updateKmat` function is available, which profides the new matrix by calling `K = updateKmat(bus, branch, conn)`
+ - If for whatever reason the reference voltage changes, the `v0` vector can be recreated using the function `v0 = v0update(bus, branch)`
