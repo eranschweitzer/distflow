@@ -1,7 +1,7 @@
 function varargout = distflow_multi(bus, branch, opt)
 %%%
 %%%		[bus, branch] = distflow_multi(bus, branch, opt)
-%%%   [Beta, K, zeta, eta, conn] = distflow_multi(bus, branch, opt)
+%%%   [Beta, K, zeta, eta, v0, conn] = distflow_multi(bus, branch, opt)
 %%%		
 %%%		bus is an nx1 structure array with fields
 %%%			- vref scalar reference voltage magnitude (p.u.) (source is
@@ -87,8 +87,8 @@ end
 
 if ~opt.mats_gen && (nargout~=2)
 	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=0 must be 2')
-elseif opt.mats_gen && (nargout~=5)
-	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=1 must be 5')
+elseif opt.mats_gen && (nargout~=6)
+	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=1 must be 6')
 end
 
 %% form matrices
@@ -256,7 +256,8 @@ if opt.mats_gen
 	varargout{2} = K;
 	varargout{3} = zeta;
 	varargout{4} = eta;
-	varargout{5} = conn;
+	varargout{5} = v0;
+	varargout{6} = conn;
 	return
 end
 %% solve
