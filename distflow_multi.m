@@ -13,6 +13,16 @@ function varargout = distflow_multi(bus, branch, opt)
 %%%			- yd 3x1 vector of delta connected constant admittance load
 %%%			 	order is [ab, bc, ca].
 %%%			- Ysh phase x phase vector of Shunt admittance at bus (for example, 1/2 of branch capacitance).
+%%%     - profile [optional] is a structure with following fields (see opt.genmats=1):
+%%%            If no field is present then a costant profile will be assumed.
+%%%          - sy: t x phase matrix, where t is the number of times steps in the profile and phase
+%%%                                  are the phases present in the y connected constant power.
+%%%                                  The entries will MULTIPLY the load values in bus(i).sy
+%%%          - sd: t x 3 matrix, where t is the number of time steps in the profile. The phase order is ab, bc, ca.
+%%%                              If no load is present, either 1 or 0 can be placed.
+%%%                              The entries will MULTIPLY the appropriate load values in bus(i).sd
+%%%          NOTE: in both sy and sd cases, they can also be tx1 vectors, in which case the load profile will be applied
+%%%                to all phases.
 %%%		
 %%%		branch is a n-1x1 structre array with fields
 %%%			- f  node id of from node
