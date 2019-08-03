@@ -95,7 +95,7 @@ else
     nphasing = {bus.phase}.';
 end
 
-if ~opt.mats_gen && (nargout~=2)
+if ~opt.mats_gen && (nargout~=2) && (nargin~=0)
 	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=0 must be 2')
 elseif opt.mats_gen && (nargout~=6)
 	error('distflow_multi: Output argument error. Number of outputs with opt.mat_gen=1 must be 6')
@@ -257,7 +257,7 @@ switch opt.alpha_method
 end
 
 
-if opt.mats_gen
+if opt.mats_gen || ((nargin == 0) && (nargout == 7))
 	if (opt.alpha_method ~=1) && (opt.alpha_method ~=12)
 		warning(['distflow_multi: option opt.mats_gen=1 is intended to be used only with',...
 		         'opt.alpha_method=1 or opt.alpha_method=12, but input is opt.alpha_method=%d.'], opt.alpha_method)
@@ -268,6 +268,9 @@ if opt.mats_gen
 	varargout{4} = eta;
 	varargout{5} = v0;
 	varargout{6} = conn;
+	if nargout == 7
+		varargout{7} = sigma;
+	end
 	return
 end
 %% solve
